@@ -159,14 +159,14 @@ def do_local_experiment():
 
 def do_test():
     print(get_gbq_credentials())
-    # exp = test_experiment()
-    # import json
-    # j_exp = json.dumps(exp, indent=4)
-    # print(j_exp)
-    # params = unroll_experiment(exp)
-    # for p in params:
-    #     df = do_matrix_completion(**p)
-    #     print(df)
+    exp = test_experiment()
+    import json
+    j_exp = json.dumps(exp, indent=4)
+    print(j_exp)
+    params = unroll_experiment(exp)
+    for p in params:
+        df = do_matrix_completion(**p)
+        print(df)
     pass
     # df = do_matrix_completion(m=100, n=100, snr=10., p=2./3., mc=20)
     # df = do_matrix_completion(m=12, n=8, snr=20., p=2./3., mc=20)
@@ -174,6 +174,6 @@ def do_test():
 
 
 if __name__ == "__main__":
-    do_local_experiment()
+    # do_local_experiment()
     # do_coiled_experiment()
-    # do_test()
+    do_test()
