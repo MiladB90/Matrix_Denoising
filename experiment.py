@@ -26,13 +26,9 @@ def _df(c: list, l: list) -> DataFrame:
 
 
 
-def df_experiment_svv(m: int, n: int, snr: float, p: float, mc: int,
-                      cos_l: float, cos_r: float, svv: np.array,
-                      slope: float, intercept: float, r_squared: float,
-                      noise_frob_squared: float, entr_noise_std: float) -> DataFrame:
-    c = ['m', 'n', 'snr', 'p', 'mc', 'cosL', 'cosR', 'nsspecfit_slope',
-         'nsspecfit_intercept', 'nsspecfit_r2', 'noise_frob_squared', 'entr_noise_std']
-    d = [m, n, snr, p, mc, cos_l, cos_r, slope, intercept, r_squared, noise_frob_squared, entr_noise_std]
+def df_experiment(m: int, n: int, snr: float, p: float, mc: int, svv: np.array) -> DataFrame:
+    c = ['m', 'n', 'snr', 'p', 'mc']
+    d = [m, n, snr, p, mc]
     for i, sv in enumerate(svv):
         c.append(f'sv{i}')
         d.append(sv)
@@ -53,260 +49,75 @@ def make_data(m: int, n: int, p: float, rng: Generator) -> tuple:
 
 
 # problem setup
-def nuc_norm_problem(Y, observed) -> tuple:
-    X = cp.Variable(Y.shape)
-    objective = cp.Minimize(normNuc(X))
-    Z = multiply(X - Y, observed)
-    constraints = [Z == 0]
+# def nuc_norm_problem(Y, observed) -> tuple:
+#     X = cp.Variable(Y.shape)
+#     objective = cp.Minimize(normNuc(X))
+#     Z = multiply(X - Y, observed)
+#     constraints = [Z == 0]
 
-    prob = cp.Problem(objective, constraints)
+#     prob = cp.Problem(objective, constraints)
 
-    prob.solve()
+#     prob.solve()
 
-    return X, prob
+#     return X, prob
 
 
 # measurements
-def vec_cos(v: np.array, vhat: np.array):
-    return np.abs(np.inner(v, vhat))
+# def vec_cos(v: np.array, vhat: np.array):
+#     return np.abs(np.inner(v, vhat))
 
 
-def take_measurements_svv(Mhat, u, v, noise):
-    uhatm, svv, vhatmh = np.linalg.svd(Mhat, full_matrices=False)
-    cosL = vec_cos(u, uhatm[:, 0])
-    cosR = vec_cos(v, vhatmh[0, :])
+# def take_measurements_svv(Mhat, u, v, noise):
+#     uhatm, svv, vhatmh = np.linalg.svd(Mhat, full_matrices=False)
+#     cosL = vec_cos(u, uhatm[:, 0])
+#     cosR = vec_cos(v, vhatmh[0, :])
 
-    # make noise_spectrum
-    m, n = Mhat.shape
-    noise_spectrum = np.linalg.svd(noise, compute_uv=False)
+#     # make noise_spectrum
+#     m, n = Mhat.shape
+#     noise_spectrum = np.linalg.svd(noise, compute_uv=False)
 
-    # extract non-zero svs:
-    r1 = sum(svv > 0.001)
-    r2 = sum(noise_spectrum > 0.001)
-    r = min(r1, r2)
+#     # extract non-zero svs:
+#     r1 = sum(svv > 0.001)
+#     r2 = sum(noise_spectrum > 0.001)
+#     r = min(r1, r2)
 
-    regr = LinearRegression()
-    X = noise_spectrum[1:r].reshape(-1,1)
-    Y = svv[1:r].reshape(-1,1)
+#     regr = LinearRegression()
+#     X = noise_spectrum[1:r].reshape(-1,1)
+#     Y = svv[1:r].reshape(-1,1)
 
-    regr.fit(X, Y)
-    slope = regr.coef_[0, 0]
-    intercept = regr.intercept_[0]
-    r_squared = regr.score(X, Y)
+#     regr.fit(X, Y)
+#     slope = regr.coef_[0, 0]
+#     intercept = regr.intercept_[0]
+#     r_squared = regr.score(X, Y)
 
-    return cosL, cosR, svv, slope, intercept, r_squared
+#     return cosL, cosR, svv, slope, intercept, r_squared
 
-def do_matrix_completion(*, m: int, n: int, snr: float, p: float, mc: int, max_matrix_dim: int) -> DataFrame:
+def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, mc: int, max_matrix_dim: int) -> DataFrame:
     rng = np.random.default_rng(seed=seed(m, n, snr, p, mc))
 
     u, v, M, noise, obs, entr_noise_std = make_data(m, n, p, rng)
     Y = snr * M + noise
-    X, _ = nuc_norm_problem(Y=Y, observed=obs)
-    Mhat = X.value
 
-    cos_l, cos_r, svv, slope, intercept, r_squared = take_measurements_svv(Mhat, u, v, noise)
-
-    # add noise energy
-    noise_frob_squared = np.linalg.norm(noise, ord='fro') ** 2
-
+    svv = np.svd(Y, compute_uv=False)
     # fixed the length of svv for all runs
     fullsvv = np.full([max_matrix_dim], np.nan)
     fullsvv[:len(svv)] = svv
 
-    return df_experiment_svv(m, n, snr, p, mc, cos_l, cos_r, fullsvv, slope, intercept, r_squared,
-                             noise_frob_squared, entr_noise_std)
+    return df_experiment(m, n, snr, p, mc, svv)
+    
 
 
 def test_experiment() -> dict:
-    # exp = dict(table_name='test',
-    #            base_index=0,
-    #            db_url='sqlite:///data/MatrixCompletion.db3',
-    #            multi_res=[{
-    #                'n': [10],
-    #                'snr': [1.0],
-    #                'p': [0.0],
-    #                'mc': [0]
-    #            }])
-    # exp = dict(table_name='test',
-    #            base_index=0,
-    #            db_url='sqlite:///data/MatrixCompletion.db3',
-    #            multi_res=[{
-    #                'n': [round(p) for p in np.linspace(10, 100, 10)],
-    #                'snr': [round(p, 0) for p in np.linspace(1, 10, 10)],
-    #                'p': [round(p, 1) for p in np.linspace(0, 1, 11)],
-    #                'mc': list(range(5))
-    #            }])
-    # exp = dict(table_name='mc:0001',
-    #            base_index=0,
-    #            db_url='sqlite:///data/MatrixCompletion.db3',
-    #            multi_res=[{
-    #                'n': [round(p) for p in np.linspace(10, 1000, 41)],
-    #                'snr': [round(p, 3) for p in np.linspace(1, 20, 39)],
-    #                'p': [round(p, 3) for p in np.linspace(0., 1., 41)],
-    #                'mc': list(range(20))
-    #            }])
-    # exp = dict(table_name='mc-0002',
-    #            base_index=0,
-    #            db_url='sqlite:///data/MatrixCompletion.db3',
-    #            multi_res=[{
-    #                'n': [round(p) for p in np.linspace(10, 500, 21)],
-    #                'snr': [round(p, 3) for p in np.linspace(1, 20, 39)],
-    #                'p': [round(p, 3) for p in np.linspace(0., 1., 41)],
-    #                'mc': list(range(20))
-    #            }])
-    # exp = dict(table_name='mc-0003',
-    #            base_index=0,
-    #            db_url='sqlite:///data/MatrixCompletion.db3',
-    #            multi_res=[{
-    #                # 'n': [round(p) for p in np.linspace(10, 500, 21)],
-    #                'n': [500],
-    #                'snr': [round(p, 3) for p in np.linspace(1, 20, 20)],
-    #                'p': [round(p, 3) for p in np.linspace(0.05, 1., 20)],
-    #                'mc': [20]
-    #            }])
-    # exp = dict(table_name='mc-0003',
-    #            base_index=400,
-    #            db_url='sqlite:///data/MatrixCompletion.db3',
-    #            multi_res=[{
-    #                'n': [500],
-    #                'snr': [round(p, 3) for p in np.linspace(1, 20, 20)],
-    #                'p': [1.],
-    #                'mc': [20]
-    #            },{
-    #                'n': [500],
-    #                'snr': [round(p, 3) for p in np.linspace(1, 20, 20)],
-    #                'p': [2./3.],
-    #                'mc': [20]
-    #            }])
-    # mr = exp['multi_res']
-    # for snr in np.linspace(3., 6., 31):
-    #     for x in np.linspace(1.5, 4.0, 26):
-    #         p = (x / snr) ** 2
-    #         if p <= 1.0:
-    #             d = {
-    #                 'n': [500],
-    #                 'snr': [snr],
-    #                 'p': [p],
-    #                 'mc': [20]
-    #             }
-    #             mr.append(d)
-    # exp = dict(table_name='mc-0004',
-    #            base_index=0,
-    #            db_url='sqlite:///data/MatrixCompletion.db3',
-    #            multi_res=[{
-    #                'm': [500],
-    #                'n': [500],
-    #                'snr': [round(p, 3) for p in np.linspace(1, 20, 20)],
-    #                'p': [round(p, 3) for p in np.linspace(0.05, 1., 20)],
-    #                'mc': [20]
-    #            }])
-    # exp = dict(table_name='mc-0004',
-    #            base_index=400,
-    #            db_url='sqlite:///data/MatrixCompletion.db3',
-    #            multi_res=[{
-    #                'm': [100, 200, 300, 400, 500],
-    #                'n': [500],
-    #                'snr': [round(p, 3) for p in np.linspace(1, 10, 10)],
-    #                'p': [0.5, 0.75, 1.0],
-    #                'mc': [20]
-    #            }])
-    # exp = dict(table_name='mc-0004',
-    #            base_index=520,
-    #            db_url='sqlite:///data/MatrixCompletion.db3',
-    #            multi_res=[{
-    #                'm': [100, 200, 300, 400, 500],
-    #                'n': [500],
-    #                'snr': [round(p, 3) for p in np.linspace(1, 10, 10)],
-    #                'p': [0.5, 0.75, 1.0],
-    #                'mc': list(range(21, 60))
-    #            }])
-    # exp = dict(table_name='mc-0005',
-    #            base_index=0,
-    #            db_url='sqlite:///data/MatrixCompletion.db3',
-    #            multi_res=[{
-    #                'm': [500],
-    #                'n': [500],
-    #                'snr': [round(p, 3) for p in np.linspace(1, 10, 10)],
-    #                'p': [0.5, 0.75, 1.0],
-    #                'mc': [20]
-    #            }])
-    # exp = dict(table_name='mc-0007',
-    #            base_index=0,
-    #            db_url='sqlite:///data/EMS.db3',
-    #            multi_res=[])
-    # mr = exp['multi_res']
-    # for snr in np.linspace(1.5, 2.25, 4):
-    #     p = 1./(2. * (snr - 1.) ** 2 + 1.)
-    #     d = {
-    #         'm': [500],
-    #         'n': [500],
-    #         'snr': [snr],
-    #         'p': list(np.linspace(p**2, min(p**3, 1.), 10)),
-    #         'mc': [20]
-    #     }
-    #     mr.append(d)
-    # exp = dict(table_name='mc-0007',
-    #            description="20230824, Add more seed indicies to the existing [20-40] in table mc-0007, "
-    #             "i.e. do 100 more range(41,141).",
-    #            params=[])
-    # mr = exp['params']
-    # for snr in np.linspace(1.5, 2.25, 4):
-    #     p = 1./(2. * (snr - 1.) ** 2 + 1.)
-    #     d = {
-    #         'm': [500],
-    #         'n': [500],
-    #         'snr': [snr],
-    #         'p': list(np.linspace(p**2, min(p**3, 1.), 10)),
-    #         'mc': list(range(41, 141))
-    #     }
-    #     mr.append(d)
-    # exp = dict(table_name='mc-0008',
-    #            base_index=0,
-    #            db_url='sqlite:///data/EMS.db3',
-    #            multi_res=[])
-    # mr = exp['multi_res']
-    # for snr in np.linspace(1.5, 2.25, 4):
-    #     p = 1./(snr * (2. * (snr - 1.) ** 2 + 1.))
-    #     d = {
-    #         'm': [500],
-    #         'n': [500],
-    #         'snr': [snr],
-    #         'p': list(np.linspace(p / 2., min(p * 3, 1.), 10)),
-    #         'mc': [20]
-    #     }
-    #     mr.append(d)
-    # exp = dict(table_name='mc-0009',
-    #            base_index=0,
-    #            db_url='sqlite:///data/EMS.db3',
-    #            multi_res=[])
-    # mr = exp['multi_res']
-    # for m in np.linspace(10, 100, 19):
-    #     d = {
-    #         'm': [round(m)],
-    #         'n': [round(m)],
-    #         'snr': [1, 5, 10, 20, 1000],
-    #         'p': [round(p, 1) for p in np.linspace(.1, 1, 10)],
-    #         'mc': list(range(21,31))
-    #     }
-    #     mr.append(d)
-    # for m in np.linspace(100, 500, 21):
-    #     d = {
-    #         'm': [round(m)],
-    #         'n': [round(m)],
-    #         'snr': [1, 5, 10, 20, 1000],
-    #         'p': [round(p, 1) for p in np.linspace(.1, 1, 10)],
-    #         'mc': list(range(21,31))
-    #     }
-    #     mr.append(d)
-    exp = dict(table_name='milad_mc_0013',
+   
+    exp = dict(table_name='test_sherlock',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=[{
-                   'm': [100, 200, 300, 400, 500],
-                   'n': [500],
-                   'snr': [round(p, 3) for p in np.linspace(1, 20, 20)],
-                   'p': [round(p, 3) for p in np.linspace(.1, 1, 19)],
-                   'mc': [round(p) for p in np.linspace(1, 20, 20)]
+                   'm': [100, 200, 300],
+                   'n': [100],
+                   'snr': [4],
+                   'p': [round(0.3, 3)],
+                   'mc': [round(p) for p in np.linspace(1, 10, 10)]
                }])
 
     # this makes 38k runs 
