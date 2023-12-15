@@ -147,14 +147,14 @@ def do_coiled_experiment():
     )
     with coiled.Cluster(software=software_environment, n_workers=80) as cluster:
         with Client(cluster) as client:
-            do_on_cluster(exp, do_matrix_completion, client, credentials=get_gbq_credentials())
+            do_on_cluster(exp, do_matrix_denoising, client, credentials=get_gbq_credentials())
 
 
 def do_local_experiment():
     exp = test_experiment()
     with LocalCluster(dashboard_address='localhost:8787') as cluster:
         with Client(cluster) as client:
-            do_on_cluster(exp, do_matrix_completion, client, credentials=get_gbq_credentials())
+            do_on_cluster(exp, do_matrix_denoising, client, credentials=get_gbq_credentials())
 
 
 def do_test():
@@ -165,11 +165,11 @@ def do_test():
     print(j_exp)
     params = unroll_experiment(exp)
     for p in params:
-        df = do_matrix_completion(**p)
+        df = do_matrix_denoising(**p)
         print(df)
     pass
-    # df = do_matrix_completion(m=100, n=100, snr=10., p=2./3., mc=20)
-    # df = do_matrix_completion(m=12, n=8, snr=20., p=2./3., mc=20)
+    # df = do_matrix_denoising(m=100, n=100, snr=10., p=2./3., mc=20)
+    # df = do_matrix_denoising(m=12, n=8, snr=20., p=2./3., mc=20)
     # print(df)
 
 
