@@ -4,7 +4,7 @@
 #SBATCH --job-name=matrix_completion
 #SBATCH --partition=normal,owners,donoho,hns,stat
 #SBATCH --cpus-per-task=16
-#SBATCH --time=05:00:00
+#SBATCH --time=00:03:00
 #SBATCH --error=mc0013.err
 #SBATCH --output=mc0013.out
 
