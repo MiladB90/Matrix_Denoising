@@ -177,6 +177,6 @@ def do_test():
 
 
 if __name__ == "__main__":
-    # do_local_experiment()
+    do_local_experiment()
     # do_coiled_experiment()
-    do_test()
+    # do_test()
