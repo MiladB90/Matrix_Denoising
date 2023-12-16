@@ -98,12 +98,12 @@ def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, mc: int, max_ma
     u, v, M, noise, obs, entr_noise_std = make_data(m, n, p, rng)
     Y = snr * M + noise
 
-    svv = np.svd(Y, compute_uv=False)
+    svv = np.linalg.svd(Y, compute_uv=False)
     # fixed the length of svv for all runs
     fullsvv = np.full([max_matrix_dim], np.nan)
     fullsvv[:len(svv)] = svv
 
-    return df_experiment(m, n, snr, p, mc, svv)
+    return df_experiment(m, n, snr, p, mc, fullsvv)
     
 
 
@@ -125,7 +125,10 @@ def test_experiment() -> dict:
     mr = exp['multi_res']
     max_matrix_dim = 0
     for params in mr:
-        max_matrix_dim = max([[max_matrix_dim], params['m'], params['n']])[0]
+        paramlist =[max_matrix_dim]
+        paramlist.extend(params['m'])
+        paramlist.extend(params['n'])
+        max_matrix_dim = max(paramlist)
     for params in mr:
         params['max_matrix_dim'] = [int(max_matrix_dim)]
     return exp
@@ -158,7 +161,7 @@ def do_local_experiment():
 
 
 def do_test():
-    print(get_gbq_credentials())
+    # print(get_gbq_credentials())
     exp = test_experiment()
     import json
     j_exp = json.dumps(exp, indent=4)
@@ -167,10 +170,10 @@ def do_test():
     for p in params:
         df = do_matrix_denoising(**p)
         print(df)
-    pass
+    # pass
     # df = do_matrix_denoising(m=100, n=100, snr=10., p=2./3., mc=20)
     # df = do_matrix_denoising(m=12, n=8, snr=20., p=2./3., mc=20)
-    # print(df)
+    print(exp['multi_res'])
 
 
 if __name__ == "__main__":
