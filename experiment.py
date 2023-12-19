@@ -100,10 +100,13 @@ def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20))
 
   multi_res = []
   for d in unique_dic:
-    for mc in np.arange(mc_range[0], mc_range[1] + 1, 1):
-      d['mc'] = mc
-      multi_res += [d]
     
+    # putting single values in a list
+    for key in d.keys():
+      d[key] = [d[key]]
+    
+    d['mc'] = np.arange(mc_range[0], mc_range[1], 1)
+    multi_res += [d]
   return multi_res
     
 def test_experiment() -> dict:
