@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
+import pandas as pd
 from numpy.random import Generator
 from pandas import DataFrame
 from scipy import stats as st
@@ -159,17 +160,17 @@ def do_local_experiment():
 def do_test():
     # print(get_gbq_credentials())
     exp = test_experiment()
-    import json
-    j_exp = json.dumps(exp, indent=4)
-    print(j_exp)
-    params = unroll_experiment(exp)
-    for p in params:
-        df = do_matrix_denoising(**p)
-        print(df)
+    # import json
+    # j_exp = json.dumps(exp, indent=4)
+    # print(j_exp)
+    # params = unroll_experiment(exp)
+    # for p in params:
+    #     df = do_matrix_denoising(**p)
+    #     print(df)
     # pass
-    # df = do_matrix_denoising(m=100, n=100, snr=10., p=2./3., mc=20)
-    # df = do_matrix_denoising(m=12, n=8, snr=20., p=2./3., mc=20)
-    print(exp['multi_res'])
+    
+    print(exp['multi_res'][:10])
+    print(exp['multi_res'][-10:])
 
 
 if __name__ == "__main__":
