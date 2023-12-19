@@ -19,4 +19,6 @@
   . phi                  (1 - phi)m rows have entr_noise_std and phi * m rows have larger noise tau * entr_noise_std
   . tau                  last phi * m rows have std tau * entr_noise_std
   . q_order              takes two values: row, col  indicated along which dim noise sclation is applied
+  . noise_scale          Y = snr * u v^T + noise_scale * Z
+  . soft_lvl             soft theresholding level in denoising model
 
