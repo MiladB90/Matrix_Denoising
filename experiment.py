@@ -48,23 +48,10 @@ def make_data(m: int, n: int, p: float, rng: Generator) -> tuple:
     return u, v, M, noise, observes, entr_noise_std   
 
 
-# problem setup
-# def nuc_norm_problem(Y, observed) -> tuple:
-#     X = cp.Variable(Y.shape)
-#     objective = cp.Minimize(normNuc(X))
-#     Z = multiply(X - Y, observed)
-#     constraints = [Z == 0]
-
-#     prob = cp.Problem(objective, constraints)
-
-#     prob.solve()
-
-#     return X, prob
-
 
 # measurements
-# def vec_cos(v: np.array, vhat: np.array):
-#     return np.abs(np.inner(v, vhat))
+def vec_cos(v: np.array, vhat: np.array):
+    return np.abs(np.inner(v, vhat))
 
 
 def take_measurements_svv(Y, u, v, soft_lvl):
@@ -75,8 +62,6 @@ def take_measurements_svv(Y, u, v, soft_lvl):
 
     return cosL, cosR, svv_soft
 
-
-#     return cosL, cosR, svv, slope, intercept, r_squared
 
 def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, 
                         mc: int, max_matrix_dim: int) -> DataFrame:
@@ -131,7 +116,7 @@ def test_experiment() -> dict:
                multi_res=dict_from_csv('tune_milad_mc_0013.csv')
               )
 
-    # this makes 38k runs 
+    
     # add max_matrix_dim for having unified output size
     mr = exp['multi_res']
     max_matrix_dim = 0
