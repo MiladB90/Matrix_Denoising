@@ -79,7 +79,7 @@ def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: fl
     
 
 
-def dict_from_csv(add, rename_cols=None, drop_cols=None, mc_range=(11, 21)):
+def dict_from_csv(add, rename_cols=None, drop_cols=None, mc_range=(11, 20)):
   
   df = pd.read_csv(add, index_col=0)
   
@@ -100,7 +100,7 @@ def dict_from_csv(add, rename_cols=None, drop_cols=None, mc_range=(11, 21)):
 
   multi_res = []
   for d in unique_dic:
-    for mc in np.arange(mc_range[0], mc_range[1], 1):
+    for mc in np.arange(mc_range[0], mc_range[1] + 1, 1):
       d['mc'] = mc
       multi_res += [d]
     
