@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
 from numpy.random import Generator
-from cvxpy.atoms import normNuc, multiply, norm
 from pandas import DataFrame
 from scipy import stats as st
 from sklearn.linear_model import LinearRegression
