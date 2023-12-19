@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import cvxpy as cp
 import numpy as np
 from numpy.random import Generator
 from cvxpy.atoms import normNuc, multiply, norm
