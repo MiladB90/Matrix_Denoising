@@ -2,8 +2,8 @@
 
 #SBATCH --job-name=matrix_denoising
 #SBATCH --partition=normal,owners,donoho,hns,stat
-#SBATCH --cpus-per-task=20
-#SBATCH --time=00:30:00
+#SBATCH --cpus-per-task=30
+#SBATCH --time=01:00:00
 #SBATCH --error=md0001.err
 #SBATCH --output=md0001.out
 
