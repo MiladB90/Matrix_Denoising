@@ -1,12 +1,11 @@
 #!/bin/sh
 
-## sherlock deployment file that requests 16 cpu cores for 15 minutes to run main.py
-#SBATCH --job-name=matrix_completion
+#SBATCH --job-name=matrix_denoising
 #SBATCH --partition=normal,owners,donoho,hns,stat
-#SBATCH --cpus-per-task=16
-#SBATCH --time=00:03:00
-#SBATCH --error=mc0013.err
-#SBATCH --output=mc0013.out
+#SBATCH --cpus-per-task=50
+#SBATCH --time=00:04:00
+#SBATCH --error=md0001.err
+#SBATCH --output=md0001.out
 
 
 ## Run the python script
