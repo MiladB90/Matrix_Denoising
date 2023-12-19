@@ -25,9 +25,11 @@ def _df(c: list, l: list) -> DataFrame:
 
 
 
-def df_experiment(m: int, n: int, snr: float, p: float, mc: int, svv: np.array) -> DataFrame:
-    c = ['m', 'n', 'snr', 'p', 'mc']
-    d = [m, n, snr, p, mc]
+def df_experiment(m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float,
+                   cosL: float, cosR: float, mc: int, svv: np.array) -> DataFrame:
+
+    c = ['m', 'n', 'snr', 'p', 'noise_scale', 'soft_lvl', 'cosL', 'cosR', 'mc']
+    d = [m, n, snr, p, noise_scale, soft_lvl, cosL, cosR, mc]
     for i, sv in enumerate(svv):
         c.append(f'sv{i}')
         d.append(sv)
@@ -54,10 +56,10 @@ def vec_cos(v: np.array, vhat: np.array):
 
 
 def take_measurements_svv(Y, u, v, soft_lvl):
-    uhatm, svv, vhatmh = np.linalg.svd(Mhat, full_matrices=False)
+    uhatm, svv, vhatmh = np.linalg.svd(Y, full_matrices=False)
     cosL = vec_cos(u, uhatm[:, 0])
     cosR = vec_cos(v, vhatmh[0, :])
-    svv_soft = np.array([max(0, svi - soft_lvl) for svi in sv])
+    svv_soft = np.array([max(0, svi - soft_lvl) for svi in svv])
 
     return cosL, cosR, svv_soft
 
@@ -74,9 +76,10 @@ def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: fl
                         
     # fixed the length of svv for all runs
     fullsvv = np.full([max_matrix_dim], np.nan)
-    fullsvv[:len(svv)] = svv_soft
+    fullsvv[:len(svv_soft)] = svv_soft
 
-    return df_experiment(m, n, snr, p, noise_scale, soft_lvl, mc, CosL, CosR, fullsvv)
+    return df_experiment(m=m, n=n, snr=snr, p=p, noise_scale=noise_scale, soft_lvl=soft_lvl,
+                         cosL=cosL, cosR=cosR, mc=mc, svv=fullsvv)
     
 
 
@@ -105,7 +108,7 @@ def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20))
     for key in d.keys():
       d[key] = [d[key]]
         
-    d['mc'] = np.arange(mc_range[0], mc_range[1], 1)
+    d['mc'] = [round(p) for p in np.arange(mc_range[0], mc_range[1], 1)]
     multi_res += [d]
   return multi_res
     
@@ -158,22 +161,27 @@ def do_local_experiment():
 
 
 def do_test():
+    from time import time
     # print(get_gbq_credentials())
     exp = test_experiment()
-    # import json
-    # j_exp = json.dumps(exp, indent=4)
+    import json
+    j_exp = json.dumps(exp, indent=4)
     # print(j_exp)
-    # params = unroll_experiment(exp)
-    # for p in params:
-    #     df = do_matrix_denoising(**p)
-    #     print(df)
-    # pass
+    params = unroll_experiment(exp)
+    print(params[0])
+    for ind in [0, 1, 1000, -2, -1]:
+        p = params[ind]
+        start = time()
+        df = do_matrix_denoising(**p)
+        print(p, '\n', df.iloc[:, :15], f'\n run time = {round(time() - start, 3)}', '\n'*2)
+
+    pass
     
-    print(exp['multi_res'][:10])
-    print(exp['multi_res'][-10:])
+    # print(exp['multi_res'][:10])
+    # print(exp['multi_res'][-10:])
 
 
 if __name__ == "__main__":
-    do_local_experiment()
+    # do_local_experiment()
     # do_coiled_experiment()
-    # do_test()
+    do_test()
