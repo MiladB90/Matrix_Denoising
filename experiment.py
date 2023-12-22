@@ -113,7 +113,7 @@ def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20))
     for key in d.keys():
       d[key] = [d[key]]
         
-    d['mc'] = [round(p) for p in np.arange(mc_range[0], mc_range[1], 1)]
+    d['mc'] = [round(p) for p in np.arange(mc_range[0], mc_range[1] + 1, 1)]
     multi_res += [d]
   return multi_res
     
