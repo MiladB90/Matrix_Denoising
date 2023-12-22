@@ -83,8 +83,8 @@ def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: fl
     fullsvv = np.full([max_matrix_dim], np.nan)
     fullsvv[:len(svv_soft)] = svv_soft
 
-    return df_experiment(m=m, n=n, snr=snr, p=p, noise_scale=noise_scale, soft_lvl=soft_lvl, max_matrix_dim=max_matrix_dim,
-                         cosL=cosL, cosR=cosR, mc=mc, svv=fullsvv)
+    return df_experiment(m=m, n=n, snr=snr, p=p, noise_scale=noise_scale, soft_lvl=soft_lvl, max_matrix_dim=max_matrix_dim, mc=mc,
+                         cosL=cosL, cosR=cosR, svv=fullsvv)
     
 
 
