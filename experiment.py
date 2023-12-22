@@ -25,11 +25,16 @@ def _df(c: list, l: list) -> DataFrame:
 
 
 
-def df_experiment(m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float,
-                   cosL: float, cosR: float, mc: int, svv: np.array) -> DataFrame:
+def df_experiment(m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, max_matrix_dim: int, mc: int,
+                   cosL: float, cosR: float, svv: np.array) -> DataFrame:
 
-    c = ['m', 'n', 'snr', 'p', 'noise_scale', 'soft_lvl', 'cosL', 'cosR', 'mc']
-    d = [m, n, snr, p, noise_scale, soft_lvl, cosL, cosR, mc]
+    # input
+    c = ['m', 'n', 'snr', 'p', 'noise_scale', 'soft_lvl', 'max_matrix_dim', 'mc']
+    d = [m, n, snr, p, noise_scale, soft_lvl, max_matrix_dim, mc]
+
+    # output
+    c +=  ['cosL', 'cosR']
+    d += [cosL, cosR]
     for i, sv in enumerate(svv):
         c.append(f'sv{i}')
         d.append(sv)
@@ -65,7 +70,7 @@ def take_measurements_svv(Y, u, v, soft_lvl):
 
 
 def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, 
-                        mc: int, max_matrix_dim: int) -> DataFrame:
+                         max_matrix_dim: int, mc: int) -> DataFrame:
     
     rng = np.random.default_rng(seed=seed(m, n, snr, p, mc))
                             
@@ -78,7 +83,7 @@ def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: fl
     fullsvv = np.full([max_matrix_dim], np.nan)
     fullsvv[:len(svv_soft)] = svv_soft
 
-    return df_experiment(m=m, n=n, snr=snr, p=p, noise_scale=noise_scale, soft_lvl=soft_lvl,
+    return df_experiment(m=m, n=n, snr=snr, p=p, noise_scale=noise_scale, soft_lvl=soft_lvl, max_matrix_dim=max_matrix_dim,
                          cosL=cosL, cosR=cosR, mc=mc, svv=fullsvv)
     
 
