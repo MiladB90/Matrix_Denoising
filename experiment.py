@@ -33,7 +33,7 @@ def df_experiment(m: int, n: int, snr: float, p: float, noise_scale: float, soft
     d = [m, n, snr, p, noise_scale, soft_lvl, max_matrix_dim, mc]
 
     # output
-    c +=  ['cosL', 'cosR']
+    c += ['cosL', 'cosR']
     d += [cosL, cosR]
     for i, sv in enumerate(svv):
         c.append(f'sv{i}')
@@ -88,7 +88,7 @@ def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: fl
     
 
 
-def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20)) -> list:
+def dict_from_csv(add: str, mc_range: tuple,  rename_cols=None, drop_cols=None) -> list:
   
   df = pd.read_csv(add, index_col=0)
   
@@ -117,12 +117,14 @@ def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20))
     multi_res += [d]
   return multi_res
     
+# md0003 722k rows
+# cpu time on 64 nodes: 1 hour
 def test_experiment() -> dict:
    
-    exp = dict(table_name='milad_md_0002',
+    exp = dict(table_name='milad_md_0003',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
-               multi_res=dict_from_csv('tune_milad_mc_0013.csv')
+               multi_res=dict_from_csv('tune_milad_mc_0013.csv', mc_range=(21, 400))
               )
 
     
@@ -171,7 +173,7 @@ def do_test():
     exp = test_experiment()
     import json
     j_exp = json.dumps(exp, indent=4)
-    # print(j_exp)
+    print(j_exp)
     params = unroll_experiment(exp)
     print(params[0])
     for ind in [0, 1, 1000, -2, -1]:
