@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-import cvxpy as cp
 import numpy as np
+import pandas as pd
 from numpy.random import Generator
-from cvxpy.atoms import normNuc, multiply, norm
 from pandas import DataFrame
 from scipy import stats as st
 from sklearn.linear_model import LinearRegression
@@ -26,9 +25,16 @@ def _df(c: list, l: list) -> DataFrame:
 
 
 
-def df_experiment(m: int, n: int, snr: float, p: float, mc: int, svv: np.array) -> DataFrame:
-    c = ['m', 'n', 'snr', 'p', 'mc']
-    d = [m, n, snr, p, mc]
+def df_experiment(m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, max_matrix_dim: int, mc: int,
+                   cosL: float, cosR: float, svv: np.array) -> DataFrame:
+
+    # input
+    c = ['m', 'n', 'snr', 'p', 'noise_scale', 'soft_lvl', 'max_matrix_dim', 'mc']
+    d = [m, n, snr, p, noise_scale, soft_lvl, max_matrix_dim, mc]
+
+    # output
+    c +=  ['cosL', 'cosR']
+    d += [cosL, cosR]
     for i, sv in enumerate(svv):
         c.append(f'sv{i}')
         d.append(sv)
@@ -48,79 +54,78 @@ def make_data(m: int, n: int, p: float, rng: Generator) -> tuple:
     return u, v, M, noise, observes, entr_noise_std   
 
 
-# problem setup
-# def nuc_norm_problem(Y, observed) -> tuple:
-#     X = cp.Variable(Y.shape)
-#     objective = cp.Minimize(normNuc(X))
-#     Z = multiply(X - Y, observed)
-#     constraints = [Z == 0]
-
-#     prob = cp.Problem(objective, constraints)
-
-#     prob.solve()
-
-#     return X, prob
-
 
 # measurements
-# def vec_cos(v: np.array, vhat: np.array):
-#     return np.abs(np.inner(v, vhat))
+def vec_cos(v: np.array, vhat: np.array):
+    return np.abs(np.inner(v, vhat))
 
 
-# def take_measurements_svv(Mhat, u, v, noise):
-#     uhatm, svv, vhatmh = np.linalg.svd(Mhat, full_matrices=False)
-#     cosL = vec_cos(u, uhatm[:, 0])
-#     cosR = vec_cos(v, vhatmh[0, :])
+def take_measurements_svv(Y, u, v, soft_lvl):
+    uhatm, svv, vhatmh = np.linalg.svd(Y, full_matrices=False)
+    cosL = vec_cos(u, uhatm[:, 0])
+    cosR = vec_cos(v, vhatmh[0, :])
+    svv_soft = np.array([max(0, svi - soft_lvl) for svi in svv])
 
-#     # make noise_spectrum
-#     m, n = Mhat.shape
-#     noise_spectrum = np.linalg.svd(noise, compute_uv=False)
+    return cosL, cosR, svv_soft
 
-#     # extract non-zero svs:
-#     r1 = sum(svv > 0.001)
-#     r2 = sum(noise_spectrum > 0.001)
-#     r = min(r1, r2)
 
-#     regr = LinearRegression()
-#     X = noise_spectrum[1:r].reshape(-1,1)
-#     Y = svv[1:r].reshape(-1,1)
-
-#     regr.fit(X, Y)
-#     slope = regr.coef_[0, 0]
-#     intercept = regr.intercept_[0]
-#     r_squared = regr.score(X, Y)
-
-#     return cosL, cosR, svv, slope, intercept, r_squared
-
-def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, mc: int, max_matrix_dim: int) -> DataFrame:
+def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, 
+                         max_matrix_dim: int, mc: int) -> DataFrame:
+    
     rng = np.random.default_rng(seed=seed(m, n, snr, p, mc))
-
+                            
     u, v, M, noise, obs, entr_noise_std = make_data(m, n, p, rng)
-    Y = snr * M + noise
+    Y = (snr * M) + (noise_scale * noise)                        
 
-    svv = np.linalg.svd(Y, compute_uv=False)
+    cosL, cosR, svv_soft = take_measurements_svv(Y=Y, u=u, v=v, soft_lvl=soft_lvl) 
+                        
     # fixed the length of svv for all runs
     fullsvv = np.full([max_matrix_dim], np.nan)
-    fullsvv[:len(svv)] = svv
+    fullsvv[:len(svv_soft)] = svv_soft
 
-    return df_experiment(m, n, snr, p, mc, fullsvv)
+    return df_experiment(m=m, n=n, snr=snr, p=p, noise_scale=noise_scale, soft_lvl=soft_lvl, max_matrix_dim=max_matrix_dim, mc=mc,
+                         cosL=cosL, cosR=cosR, svv=fullsvv)
     
 
 
+def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20)) -> list:
+  
+  df = pd.read_csv(add, index_col=0)
+  
+  # below columns will be renamed
+  if not rename_cols:
+    rename_cols = {'nsspecfit_slope': 'noise_scale', 'nsspecfit_intercept':'soft_lvl'}
+  # below columns will be drop
+  if not drop_cols:
+    drop_cols = ['nsspecfit_r2']
+    
+  df = df.drop(columns=drop_cols)
+  df = df.rename(columns=rename_cols)
+  
+  # make positive soft thresholding level
+  df['soft_lvl'] = np.abs(df['soft_lvl'])
+
+  unique_dic = df.to_dict('records')
+
+  multi_res = []
+  for d in unique_dic: 
+    # putting single values in a list
+    for key in d.keys():
+      d[key] = [d[key]]
+        
+    d['mc'] = [round(p) for p in np.arange(mc_range[0], mc_range[1] + 1, 1)]
+    multi_res += [d]
+  return multi_res
+    
 def test_experiment() -> dict:
    
-    exp = dict(table_name='test_sherlock',
+    exp = dict(table_name='milad_md_0002',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
-               multi_res=[{
-                   'm': [100, 200, 300],
-                   'n': [100],
-                   'snr': [4],
-                   'p': [round(0.3, 3)],
-                   'mc': [round(p) for p in np.linspace(1, 10, 10)]
-               }])
+               multi_res=dict_from_csv('tune_milad_mc_0013.csv')
+              )
 
-    # this makes 38k runs 
+    
     # add max_matrix_dim for having unified output size
     mr = exp['multi_res']
     max_matrix_dim = 0
@@ -161,19 +166,24 @@ def do_local_experiment():
 
 
 def do_test():
+    from time import time
     # print(get_gbq_credentials())
     exp = test_experiment()
     import json
     j_exp = json.dumps(exp, indent=4)
-    print(j_exp)
+    # print(j_exp)
     params = unroll_experiment(exp)
-    for p in params:
+    print(params[0])
+    for ind in [0, 1, 1000, -2, -1]:
+        p = params[ind]
+        start = time()
         df = do_matrix_denoising(**p)
-        print(df)
-    # pass
-    # df = do_matrix_denoising(m=100, n=100, snr=10., p=2./3., mc=20)
-    # df = do_matrix_denoising(m=12, n=8, snr=20., p=2./3., mc=20)
-    print(exp['multi_res'])
+        print(p, '\n', df.iloc[:, :15], f'\n run time = {round(time() - start, 3)}', '\n'*2)
+
+    pass
+    
+    # print(exp['multi_res'][:10])
+    # print(exp['multi_res'][-10:])
 
 
 if __name__ == "__main__":
