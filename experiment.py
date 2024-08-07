@@ -118,11 +118,13 @@ def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20))
   return multi_res
     
 def test_experiment() -> dict:
-   
+    # This file name need to be changed for newly obtained corresponding model
+    tune_file_name = 'tune_milad_cs_0001.csv'
+    
     exp = dict(table_name='milad_md_cs0001',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
-               multi_res=dict_from_csv('tune_milad_cs_0001.csv', mc_range=(11, 300))
+               multi_res=dict_from_csv(tune_file_name, mc_range=(11, 100))
               )
 
     
