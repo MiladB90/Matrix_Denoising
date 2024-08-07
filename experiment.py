@@ -119,10 +119,10 @@ def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20))
     
 def test_experiment() -> dict:
    
-    exp = dict(table_name='milad_md_0002',
+    exp = dict(table_name='milad_md_cs0001',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
-               multi_res=dict_from_csv('tune_milad_mc_0013.csv')
+               multi_res=dict_from_csv('tune_milad_cs_0001.csv', mc_range=(11, 300))
               )
 
     
