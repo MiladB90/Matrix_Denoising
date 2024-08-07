@@ -1,11 +1,11 @@
 #!/bin/sh
 
-#SBATCH --job-name=md
+#SBATCH --job-name=md05
 #SBATCH --partition=normal,owners,donoho,hns,stat
-#SBATCH --cpus-per-task=128
-#SBATCH --time=24:30:00
-#SBATCH --error=md_cs01.err
-#SBATCH --output=md_cs01.out
+#SBATCH --cpus-per-task=64
+#SBATCH --time=5:00:00
+#SBATCH --error=md05.err
+#SBATCH --output=md05.out
 
 
 ## Run the python script

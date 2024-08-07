@@ -25,16 +25,16 @@ def _df(c: list, l: list) -> DataFrame:
 
 
 
-def df_experiment(m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, max_matrix_dim: int, mc: int,
-                   cosL: float, cosR: float, svv: np.array) -> DataFrame:
+def df_experiment(m: int, n: int, snr: float, snr2: float, p: float, noise_scale: float, soft_lvl: float, max_matrix_dim: int, mc: int,
+                   cos_l: float, cos_r: float, cos_l2: float, cos_r2: float, svv: np.array) -> DataFrame:
 
     # input
-    c = ['m', 'n', 'snr', 'p', 'noise_scale', 'soft_lvl', 'max_matrix_dim', 'mc']
-    d = [m, n, snr, p, noise_scale, soft_lvl, max_matrix_dim, mc]
+    c = ['m', 'n', 'snr', 'snr2', 'p', 'noise_scale', 'soft_lvl', 'max_matrix_dim', 'mc']
+    d = [m, n, snr, snr2, p, noise_scale, soft_lvl, max_matrix_dim, mc]
 
     # output
-    c +=  ['cosL', 'cosR']
-    d += [cosL, cosR]
+    c += ['cosL', 'cosR', 'cosL2', 'cosR2']
+    d += [cos_l, cos_r, cos_l2, cos_r2]
     for i, sv in enumerate(svv):
         c.append(f'sv{i}')
         d.append(sv)
@@ -44,15 +44,17 @@ def df_experiment(m: int, n: int, snr: float, p: float, noise_scale: float, soft
 def make_data(m: int, n: int, p: float, rng: Generator) -> tuple:
     u = rng.normal(size=m)
     v = rng.normal(size=n)
-    u /= np.linalg.norm(u)
-    v /= np.linalg.norm(v)
-    M = np.outer(u, v)
+    u2 = rng.normal(size=m)
+    v2 = rng.normal(size=n)
+
+    for vec in [u, v, u2, v2]:
+        vec /= np.linalg.norm(vec)
+
     entr_noise_std = 1 / np.sqrt(n) 
     noise = rng.normal(0, entr_noise_std, (m, n))
     observes = st.bernoulli.rvs(p, size=(m, n), random_state=rng)
 
-    return u, v, M, noise, observes, entr_noise_std   
-
+    return u, v, u2, v2, noise, observes, entr_noise_std
 
 
 # measurements
@@ -60,31 +62,34 @@ def vec_cos(v: np.array, vhat: np.array):
     return np.abs(np.inner(v, vhat))
 
 
-def take_measurements_svv(Y, u, v, soft_lvl):
+def take_measurements_svv(Y, u, v, u2, v2, soft_lvl):
     uhatm, svv, vhatmh = np.linalg.svd(Y, full_matrices=False)
-    cosL = vec_cos(u, uhatm[:, 0])
-    cosR = vec_cos(v, vhatmh[0, :])
+    cos_l = vec_cos(u, uhatm[:, 0])
+    cos_r = vec_cos(v, vhatmh[0, :])
+    cos_l2 = vec_cos(u2, uhatm[:, 1])
+    cos_r2 = vec_cos(v2, vhatmh[1, :])
+
     svv_soft = np.array([max(0, svi - soft_lvl) for svi in svv])
 
-    return cosL, cosR, svv_soft
+    return cos_l, cos_r, cos_l2, cos_r2, svv_soft
 
 
-def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, 
+def do_matrix_denoising(*, m: int, n: int, snr: float, snr2: float, p: float, noise_scale: float, soft_lvl: float,
                          max_matrix_dim: int, mc: int) -> DataFrame:
     
     rng = np.random.default_rng(seed=seed(m, n, snr, p, mc))
                             
-    u, v, M, noise, obs, entr_noise_std = make_data(m, n, p, rng)
-    Y = (snr * M) + (noise_scale * noise)                        
+    u, v, u2, v2, noise, observes, entr_noise_std = make_data(m, n, p, rng)
+    Y = (snr * np.outer(u, v)) + (snr2 * np.outer(u2, v2)) + (noise_scale * noise)
 
-    cosL, cosR, svv_soft = take_measurements_svv(Y=Y, u=u, v=v, soft_lvl=soft_lvl) 
+    cos_l, cos_r, cos_l2, cos_r2, svv_soft = take_measurements_svv(Y=Y, u=u, v=v, u2=u2, v2=v2, soft_lvl=soft_lvl)
                         
     # fixed the length of svv for all runs
     fullsvv = np.full([max_matrix_dim], np.nan)
     fullsvv[:len(svv_soft)] = svv_soft
 
-    return df_experiment(m=m, n=n, snr=snr, p=p, noise_scale=noise_scale, soft_lvl=soft_lvl, max_matrix_dim=max_matrix_dim, mc=mc,
-                         cosL=cosL, cosR=cosR, svv=fullsvv)
+    return df_experiment(m=m, n=n, snr=snr, snr2=snr2, p=p, noise_scale=noise_scale, soft_lvl=soft_lvl, max_matrix_dim=max_matrix_dim, mc=mc,
+                         cos_l=cos_l, cos_r=cos_r, cos_l2=cos_l2, cos_r2=cos_r2, svv=fullsvv)
     
 
 
@@ -119,7 +124,7 @@ def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20))
     
 def test_experiment() -> dict:
     # This file name need to be changed for newly obtained corresponding model
-    tune_file_name = 'tune_milad_cs_0001.csv'
+    tune_file_name = 'tune_milad_mc_0019.csv'
     
     exp = dict(table_name='milad_md_cs0001',
                base_index=0,
@@ -176,11 +181,12 @@ def do_test():
     # print(j_exp)
     params = unroll_experiment(exp)
     print(params[0])
-    for ind in [0, 1, 1000, -2, -1]:
+    for ind in [0, 1, 1000, 2000, 10000, -2, -1] :
         p = params[ind]
         start = time()
         df = do_matrix_denoising(**p)
-        print(p, '\n', df.iloc[:, :15], f'\n run time = {round(time() - start, 3)}', '\n'*2)
+        print(p, '\n', df.iloc[:, :20], f'\n run time = {round(time() - start, 3)}')
+        print(df[ 'cosL, cosR, cosL2, cosR2'.split(', ') + [f'sv{i}' for i in range(10)]], '\n'*2)
 
     pass
     
@@ -189,6 +195,6 @@ def do_test():
 
 
 if __name__ == "__main__":
-    do_local_experiment()
+    # do_local_experiment()
     # do_coiled_experiment()
-    # do_test()
+    do_test()
