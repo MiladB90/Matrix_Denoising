@@ -126,7 +126,7 @@ def test_experiment() -> dict:
     # This file name need to be changed for newly obtained corresponding model
     tune_file_name = 'tune_milad_mc_0019.csv'
     
-    exp = dict(table_name='milad_md_cs0001',
+    exp = dict(table_name='milad_md_0005',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=dict_from_csv(tune_file_name, mc_range=(11, 100))
@@ -186,7 +186,7 @@ def do_test():
         start = time()
         df = do_matrix_denoising(**p)
         print(p, '\n', df.iloc[:, :20], f'\n run time = {round(time() - start, 3)}')
-        print(df[ 'cosL, cosR, cosL2, cosR2'.split(', ') + [f'sv{i}' for i in range(10)]], '\n'*2)
+        print(df['cosL, cosR, cosL2, cosR2'.split(', ') + [f'sv{i}' for i in range(10)]], '\n'*2)
 
     pass
     
@@ -195,6 +195,6 @@ def do_test():
 
 
 if __name__ == "__main__":
-    # do_local_experiment()
+    do_local_experiment()
     # do_coiled_experiment()
-    do_test()
+    # do_test()
