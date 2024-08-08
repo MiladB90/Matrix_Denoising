@@ -126,7 +126,7 @@ def test_experiment() -> dict:
     # This file name need to be changed for newly obtained corresponding model
     tune_file_name = 'tune_milad_mc_0019.csv'
     
-    exp = dict(table_name='milad_md_0005',
+    exp = dict(table_name='milad_md_0006',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=dict_from_csv(tune_file_name, mc_range=(11, 100))
