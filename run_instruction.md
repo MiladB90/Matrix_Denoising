@@ -22,6 +22,6 @@ def test_experiment() -> dict:
     ...
 ```
 
-7. Make necessary changes to experiment.py file, and run.
+7. Make necessary changes to experiment.py (or experiment_rank2.py) file, and run.
 
 
