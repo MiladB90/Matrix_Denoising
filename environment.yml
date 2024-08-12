@@ -1,6 +1,6 @@
 name: rank2-make-tune
 channels:
-  - conda-forgemamba env list
+  - conda-forge
   - defaults
 dependencies:
   - python=3.10
@@ -12,6 +12,7 @@ dependencies:
   - google-auth
   - pandas-gbq>=0.19.2
   - dask
+  - dask-jobqueue
   - coiled
   - sqlalchemy
   - pg8000
