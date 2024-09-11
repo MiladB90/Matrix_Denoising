@@ -124,6 +124,7 @@ def make_tune_data(sensing_model_table_name):
     qr = f'SELECT * FROM  `EMS.{sensing_model_table_name}` WHERE mc <= 10'
     client = bigquery.Client(project=project_id, credentials=get_gbq_credentials())
     df_tune = client.query(qr).to_dataframe()
+    df_tune = df_tune.dropna()
 
     # group mean
     all_cols = 'm, n, snr, snr2, p'.split(', ')
@@ -145,12 +146,12 @@ def test_experiment() -> dict:
     # below two lines need to modify. it will run denoising model on same grid of hyper-parameters as in sensing_model
     # given.  Monte Carlo numbers would be chosen in mc_range.  since we used mc = 1, ..., 10 for tuning, it's better to
     # use mc >= 11 for making test data.
-    sensing_model_table_name = 'milad_mc_0013'
-    mc_range = (11, 12)
+    sensing_model_table_name = 'milad_mc_0027'
+    mc_range = (11, 20)
 
 
     make_tune_data(sensing_model_table_name)
-    exp = dict(table_name='milad_md_test_make_tune',
+    exp = dict(table_name='milad_md_0008',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=dict_from_csv(f'tune_{sensing_model_table_name}.csv', mc_range=mc_range)
@@ -202,19 +203,30 @@ def do_test():
     exp = test_experiment()
     import json
     j_exp = json.dumps(exp, indent=4)
-    # print(j_exp)
+    print(j_exp)
     params = unroll_experiment(exp)
-    print(params[0])
-    for ind in [0, 1, 1000, -2, -1]:
+    inds = [0, 1, -1, -2]
+    # inds = []
+    inds += list(np.random.randint(len(params), size=6, dtype=int))
+    print(f'experiment has {len(params)} items. we test run on random sample {inds}.')
+    t0 = time()
+    for ind in inds:
         p = params[ind]
-        start = time()
         df = do_matrix_denoising(**p)
-        print(p, '\n', df.iloc[:, :15], f'\n run time = {round(time() - start, 3)}', '\n'*2)
+        print(f'ind = {ind}')
+        cols = df.columns
+        print(df[cols[:20]])
 
-    pass
-    
-    # print(exp['multi_res'][:10])
-    # print(exp['multi_res'][-10:])
+
+    def get_run_time(start):
+        from time import time
+        d = time() - t0
+        return f'{round(d / 60, 2)} mins'
+
+    print(f'run time for {len(inds)} runs: {get_run_time(t0)}')
+    d = time() - t0
+    est = round((d * len(params) / len(inds)) / 3600, 2)
+    print(f'whole run time estimate on one core is {est} hours')
 
 
 if __name__ == "__main__":
