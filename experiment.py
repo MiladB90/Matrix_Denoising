@@ -26,12 +26,12 @@ def _df(c: list, l: list) -> DataFrame:
 
 
 
-def df_experiment(m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, max_matrix_dim: int, mc: int,
+def df_experiment(m: int, n: int, snr: float, p: float, penalty_coef: float, noise_scale: float, soft_lvl: float, max_matrix_dim: int, mc: int,
                    cosL: float, cosR: float, svv: np.array) -> DataFrame:
 
     # input
-    c = ['m', 'n', 'snr', 'p', 'noise_scale', 'soft_lvl', 'max_matrix_dim', 'mc']
-    d = [m, n, snr, p, noise_scale, soft_lvl, max_matrix_dim, mc]
+    c = ['m', 'n', 'snr', 'p', 'penalty_coef', 'noise_scale', 'soft_lvl', 'max_matrix_dim', 'mc']
+    d = [m, n, snr, p, penalty_coef, noise_scale, soft_lvl, max_matrix_dim, mc]
 
     # output
     c +=  ['cosL', 'cosR']
@@ -70,7 +70,7 @@ def take_measurements_svv(Y, u, v, soft_lvl):
     return cosL, cosR, svv_soft
 
 
-def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, 
+def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, penalty_coef: float, noise_scale: float, soft_lvl: float,
                          max_matrix_dim: int, mc: int) -> DataFrame:
     
     rng = np.random.default_rng(seed=seed(m, n, snr, p, mc))
@@ -84,7 +84,7 @@ def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: fl
     fullsvv = np.full([max_matrix_dim], np.nan)
     fullsvv[:len(svv_soft)] = svv_soft
 
-    return df_experiment(m=m, n=n, snr=snr, p=p, noise_scale=noise_scale, soft_lvl=soft_lvl, max_matrix_dim=max_matrix_dim, mc=mc,
+    return df_experiment(m=m, n=n, snr=snr, p=p, penalty_coef=penalty_coef, noise_scale=noise_scale, soft_lvl=soft_lvl, max_matrix_dim=max_matrix_dim, mc=mc,
                          cosL=cosL, cosR=cosR, svv=fullsvv)
     
 
@@ -127,12 +127,14 @@ def make_tune_data(sensing_model_table_name):
     df_tune = df_tune.dropna()
 
     # group mean
-    all_cols = 'm, n, snr, snr2, p'.split(', ')
-    grid_cols = [col for col in all_cols if col in list(df_tune.columns)]
-    gdf = df_tune.groupby(grid_cols)
+    mc_index = df_tune.columns.get_loc('mc')
+    input_columns = list(df_tune.columns[:mc_index])
+    # all_cols = 'm, n, snr, snr2, p'.split(', ')
+    # grid_cols = [col for col in all_cols if col in list(df_tune.columns)]
+    gdf = df_tune.groupby(input_columns)
     df_emp_param = gdf.mean().reset_index()
 
-    final_cols = grid_cols + ['nsspecfit_slope', 'nsspecfit_intercept', 'nsspecfit_r2']
+    final_cols = input_columns + ['nsspecfit_slope', 'nsspecfit_intercept', 'nsspecfit_r2']
     df_emp_param = df_emp_param[final_cols]
 
     # save data
@@ -151,7 +153,7 @@ def test_experiment() -> dict:
 
 
     make_tune_data(sensing_model_table_name)
-    exp = dict(table_name='milad_md_0008',
+    exp = dict(table_name='milad_md_0009',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=dict_from_csv(f'tune_{sensing_model_table_name}.csv', mc_range=mc_range)
@@ -213,9 +215,9 @@ def do_test():
     for ind in inds:
         p = params[ind]
         df = do_matrix_denoising(**p)
-        print(f'ind = {ind}')
+        print(f'ind = {ind}, params={p}')
         cols = df.columns
-        print(df[cols[:20]])
+        print(df[cols[:20]], '\n')
 
 
     def get_run_time(start):
