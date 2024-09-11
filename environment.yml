@@ -1,4 +1,4 @@
-name: milad_mc
+name: rank2-make-tune
 channels:
   - conda-forge
   - defaults
@@ -6,12 +6,13 @@ dependencies:
   - python=3.10
   - blas[build=mkl]
   - scipy
-  - cvxpy
+  - cvxpy=1.3.2
   - scikit-learn
   - pandas
   - google-auth
   - pandas-gbq>=0.19.2
   - dask
+  - dask-jobqueue
   - coiled
   - sqlalchemy
   - pg8000
@@ -19,6 +20,7 @@ dependencies:
   - pip
   - pip:
     - git+https://github.com/adonoho/EMS.git
+    - google-cloud-bigquery
 variables:
   MKL_NUM_THREADS: '1'
   OPENBLAS_NUM_THREADS: '1'
