@@ -90,58 +90,42 @@ def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, penalty_coef: f
 
 
 def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20)) -> list:
-  
-  df = pd.read_csv(add, index_col=0)
-  
-  # below columns will be renamed
-  if not rename_cols:
-    rename_cols = {'nsspecfit_slope': 'noise_scale', 'nsspecfit_intercept':'soft_lvl'}
-  # below columns will be drop
-  if not drop_cols:
-    drop_cols = ['nsspecfit_r2']
-    
-  df = df.drop(columns=drop_cols)
-  df = df.rename(columns=rename_cols)
-  
-  # make positive soft thresholding level
-  df['soft_lvl'] = np.abs(df['soft_lvl'])
+    df = pd.read_csv(add, index_col=0)
 
-  unique_dic = df.to_dict('records')
+    unique_dic = df.to_dict('records')
+    multi_res = []
+    for d in unique_dic:
+        # putting single values in a list
+        for key in d.keys():
+            d[key] = [d[key]]
 
-  multi_res = []
-  for d in unique_dic: 
-    # putting single values in a list
-    for key in d.keys():
-      d[key] = [d[key]]
-        
-    d['mc'] = [round(p) for p in np.arange(mc_range[0], mc_range[1] + 1, 1)]
-    multi_res += [d]
-  return multi_res
+        d['mc'] = [round(p) for p in np.arange(mc_range[0], mc_range[1] + 1, 1)]
+        multi_res += [d]
+    return multi_res
 
-def make_tune_data(sensing_model_table_name):
+def make_tune_data_theory(sensing_model_table_name):
     # load table_name
     project_id = 'hs-deep-lab-donoho'
-    qr = f'SELECT * FROM  `EMS.{sensing_model_table_name}` WHERE mc <= 10'
+    qr = f'SELECT * FROM  `EMS.{sensing_model_table_name}` WHERE mc <= 1'
     client = bigquery.Client(project=project_id, credentials=get_gbq_credentials())
     df_tune = client.query(qr).to_dataframe()
-    df_tune = df_tune.dropna()
 
-    # group mean
+    # add noise scale as 1/root(p)
+    df_tune['noise_scale'] = 1 / np.sqrt(df_tune['p'])
+
+    # add soft_lvl as 2 * (1/root_p - 1) + lambda_mdn
+    df_tune['soft_lvl'] = (2 / np.sqrt(df_tune['p'])) - 2 + df_tune['penalty_coef']
+
+    # select columns
     mc_index = df_tune.columns.get_loc('mc')
-    input_columns = list(df_tune.columns[:mc_index])
-    # all_cols = 'm, n, snr, snr2, p'.split(', ')
-    # grid_cols = [col for col in all_cols if col in list(df_tune.columns)]
-    gdf = df_tune.groupby(input_columns)
-    df_emp_param = gdf.mean().reset_index()
-
-    final_cols = input_columns + ['nsspecfit_slope', 'nsspecfit_intercept', 'nsspecfit_r2']
-    df_emp_param = df_emp_param[final_cols]
+    input_columns = list(df_tune.columns[:mc_index]) + ['noise_scale', 'soft_lvl']
+    df_tune = df_tune[input_columns]
 
     # save data
-    add = f'tune_{sensing_model_table_name}.csv'
-    df_emp_param.to_csv(add, float_format='%.6f')
+    add = f'tune_theory_{sensing_model_table_name}.csv'
+    df_tune.to_csv(add, float_format='%.6f')
 
-    return df_emp_param
+    return df_tune
 
 def test_experiment() -> dict:
    
@@ -152,11 +136,11 @@ def test_experiment() -> dict:
     mc_range = (11, 20)
 
 
-    make_tune_data(sensing_model_table_name)
-    exp = dict(table_name='milad_md_0009',
+    make_tune_data_theory(sensing_model_table_name)
+    exp = dict(table_name='milad_md_0010',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
-               multi_res=dict_from_csv(f'tune_{sensing_model_table_name}.csv', mc_range=mc_range)
+               multi_res=dict_from_csv(f'tune_theory_{sensing_model_table_name}.csv', mc_range=mc_range)
               )
 
     
@@ -205,7 +189,7 @@ def do_test():
     exp = test_experiment()
     import json
     j_exp = json.dumps(exp, indent=4)
-    print(j_exp)
+    # print(j_exp)
     params = unroll_experiment(exp)
     inds = [0, 1, -1, -2]
     # inds = []
@@ -222,7 +206,7 @@ def do_test():
 
     def get_run_time(start):
         from time import time
-        d = time() - t0
+        d = time() - start
         return f'{round(d / 60, 2)} mins'
 
     print(f'run time for {len(inds)} runs: {get_run_time(t0)}')
@@ -232,6 +216,6 @@ def do_test():
 
 
 if __name__ == "__main__":
-    do_local_experiment()
+    # do_local_experiment()
     # do_coiled_experiment()
-    # do_test()
+    do_test()
