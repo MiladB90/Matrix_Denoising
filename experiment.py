@@ -7,166 +7,202 @@ from scipy import stats as st
 from sklearn.linear_model import LinearRegression
 from google.cloud import bigquery
 
+# import from other files
+from data_generators import *
+from shrinkers import *
+
 from EMS.manager import active_remote_engine, do_on_cluster, unroll_experiment, get_gbq_credentials
 from dask.distributed import Client, LocalCluster
 import coiled
 import logging
+import json
 
 logging.basicConfig(level=logging.INFO)
-
-
-def seed(m: int, n: int, snr: float, p: float, mc: int) -> int:
-    return round(1 + m * 1000 + n * 1000 + round(snr * 1000) + round(p * 1000) + mc * 100000)
 
 
 def _df(c: list, l: list) -> DataFrame:
     d = dict(zip(c, l))
     return DataFrame(data=d, index=[0])
 
+def list_encoder(l: list) -> str:
+    return json.dumps(l)
 
+def list_decoder(s: str) -> list:
+    return json.loads(s)
 
+    
 
-def df_experiment(m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, max_matrix_dim: int, mc: int,
-                   cosL: float, cosR: float, svv: np.array) -> DataFrame:
+def do_matrix_denoising(*, m: int, n: int, rank: int, signal_strengths: str, p: float, sigma: float,
+                         ensemble: str, left_singvec_dist: str, right_singvec_dist: str, solver_name: str, solver_parameters: str,
+                         max_matrix_dim: int, max_rank: int, max_solver_params: int, mc_id: int) -> DataFrame:
+    # unpack list inputs, e.g. signal strenghs
+    ells = list_decoder(signal_strengths)
+    solver_parameters_list = list_decoder(solver_parameters)
+    
+    # generate data
+    # functions are defined in data_generators.py
+    rng = np.random.default_rng(seed=seed(m=m, n=n, p=p, signal_strngths=ells, solver_parameters=solver_parameters_list,
+                                          mc_id=mc_id))
+    U, V, noise, noise_entry_std = make_data(m=m, n=n, rank=rank, p=p, sigma=sigma,
+                                           ensemble=ensemble, left_singvec_dist=left_singvec_dist,
+                                           right_singvec_dist=right_singvec_dist,
+                                           rng=rng)
+    
+    # form the model  (eta(signal + scale * noise; lambda))    
+    signal = U @ np.diag(ells) @ V.T
+    noisy_observations = signal + noise
+    
+    # estimate the signal
+    shrinker_name, shrinker_parameters = get_shrinker_name_and_parameters(p, solver_name, solver_parameters_list)
+    def eta(x):
+        return shrinker(x, shrinker_name, shrinker_parameters)
 
+    Uhat, Shat, Vhat = np.linalg.svd(noisy_observations)
+    Vhat = Vhat.T       # transpose vhat to have singular vectors as columns
+    Shat = [eta(s) for s in Shat]       # apply the shrinkage
+    estimator = Uhat @ np.diag(Shat) @ Vhat.T
+    
+    # take measurements
+    df_out = take_measurements(U=U, V=V, signal=signal, rank=rank, noisy_observations=noisy_observations,
+                               estimator=estimator,
+                               max_rank=max_rank, max_matrix_dim=max_matrix_dim)
+
+    # concatenate inputs + outputs
     # input
-    c = ['m', 'n', 'snr', 'p', 'noise_scale', 'soft_lvl', 'max_matrix_dim', 'mc']
-    d = [m, n, snr, p, noise_scale, soft_lvl, max_matrix_dim, mc]
+    c = 'm, n, rank, signal_strengths, p, sigma, noise_entry_std,' \
+        ' ensemble, left_singvec_dist, right_singvec_dist, ' \
+        ' solver_name, solver_parameters, shrinker_name, shrinker_parameters' \
+        ' max_matrix_dim, max_rank, max_solver_params, mc_id'.split(', ')
+    inputs = [m, n, rank, signal_strengths, p, sigma, noise_entry_std,
+              ensemble, left_singvec_dist, right_singvec_dist,
+              shrinker_name, shrinker_parameters, shrinker_name, list_encoder(shrinker_parameters),
+              max_matrix_dim, max_rank, max_solver_params, mc_id]
+    df_inputs = _df(c, inputs)
+    
+    # # unpack signal strength, put it in a df with unified number of columns max_rank
+    # full_ells = [0] * max_rank
+    # full_ells[:rank] = ells
+    # c = [f'ell_{i}' for i in range(max_rank)]
+    # df_signal_strengths = _df(c, full_ells)
+    #
+    # # unpack solver params, put it in a df with unified number of columns max_rank
+    # full_shrinker_parameters = [None] * max_solver_params
+    # param_size = len(shrinker_parameters_list)
+    # full_shrinker_parameters[:param_size] = shrinker_parameters_list
+    # cols = [f'lambda_{i}' for i in range(max_solver_params)]
+    # df_shrinker_parameters = _df(cols, full_shrinker_parameters)
 
-    # output
-    c +=  ['cosL', 'cosR']
-    d += [cosL, cosR]
-    for i, sv in enumerate(svv):
-        c.append(f'sv{i}')
-        d.append(sv)
-    return _df(c, d)   
-
-
-def make_data(m: int, n: int, p: float, rng: Generator) -> tuple:
-    u = rng.normal(size=m)
-    v = rng.normal(size=n)
-    u /= np.linalg.norm(u)
-    v /= np.linalg.norm(v)
-    M = np.outer(u, v)
-    entr_noise_std = 1 / np.sqrt(n) 
-    noise = rng.normal(0, entr_noise_std, (m, n))
-    observes = st.bernoulli.rvs(p, size=(m, n), random_state=rng)
-
-    return u, v, M, noise, observes, entr_noise_std   
-
+    # concat output
+    # df_inputs = pd.concat([df_inputs, df_signal_strengths, df_shrinker_parameters], axis=1)
+    df = pd.concat([df_inputs, df_out], axis=1)
+    
+    return df
 
 
 # measurements
-def vec_cos(v: np.array, vhat: np.array):
-    return np.abs(np.inner(v, vhat))
+def take_measurements(*, U: np.ndarray, V: np.ndarray, signal: np.ndarray, noisy_observations: np.ndarray, rank: int,
+                        estimator: np.ndarray,
+                        max_rank: int, max_matrix_dim: int) -> DataFrame:
+    Uhat, Shat, Vhat = np.linalg.svd(estimator, full_matrices=False)
+    # transpose Vhat to get vectors as columns
+    Vhat = Vhat.T
+
+    measures = {}
+    # 1. left cos similarities (cos_l_{i},  i = 0, 1, ..., rank)
+    for i in range(max_rank):
+        name = f'cos_l_{i}'
+        val = np.abs(np.dot(U[:, i], Uhat[:, i])) if i < rank else None
+        measures[name] = val
+
+    # 2. right cos similarities (cos_r_{i},  i = 0, 1, ..., rank)
+    for i in range(max_rank):
+        name = f'cos_r_{i}'
+        val = np.abs(np.dot(V[:, i], Vhat[:, i])) if i < rank else None
+        measures[name] = val
+
+    # 3. spectrum of estimator (sv_{i}, i = 0, 1, ..., max_matrix_dim - 1)
+    for i in range(max_matrix_dim):
+        val = Shat[i] if i < len(Shat) else None
+        name = f'sv_{i}'
+        measures[name] = val
+
+    # 4. MSE with signal (MSE_signal)
+    name = 'MSE_signal'
+    val = get_mse(signal, estimator)
+    measures[name] = val
+
+    # 5. MSE with full noisy observations (MSE_obs)
+    name = 'MSE_obs'
+    val = get_mse(noisy_observations, estimator)
+    measures[name] = val
+
+    # 6. true nuc norm of full noisy observation
+    name = 'nuc_norm_full_noisy_obs'
+    val = np.linalg.norm(noisy_observations, 'nuc')
+    measures[name] = val
+
+    # 7. estimated nuc norm
+    name = 'nuc_norm_est'
+    val = np.linalg.norm(estimator, 'nuc')
+    measures[name] = val
+
+    # 8. relative Frobenius norm of error
+    name = 'relative_fro_norm_err'
+    err = signal - estimator
+    val = np.linalg.norm(err, 'fro') / np.linalg.norm(signal, 'fro')
+    measures[name] = val
 
 
-def take_measurements_svv(Y, u, v, soft_lvl):
-    uhatm, svv, vhatmh = np.linalg.svd(Y, full_matrices=False)
-    cosL = vec_cos(u, uhatm[:, 0])
-    cosR = vec_cos(v, vhatmh[0, :])
-    svv_soft = np.array([max(0, svi - soft_lvl) for svi in svv])
+    # make dataframe and return
+    measures_df = DataFrame(measures, index=[0])
+    return measures_df
 
-    return cosL, cosR, svv_soft
+# other functions
+def get_mse(mat1: np.ndarray, mat2: np.ndarray) -> float:
+    diff = mat1 - mat2
+    mse = (diff ** 2).mean()
+    return mse
 
-
-def do_matrix_denoising(*, m: int, n: int, snr: float, p: float, noise_scale: float, soft_lvl: float, 
-                         max_matrix_dim: int, mc: int) -> DataFrame:
-    
-    rng = np.random.default_rng(seed=seed(m, n, snr, p, mc))
-                            
-    u, v, M, noise, obs, entr_noise_std = make_data(m, n, p, rng)
-    Y = (snr * M) + (noise_scale * noise)                        
-
-    cosL, cosR, svv_soft = take_measurements_svv(Y=Y, u=u, v=v, soft_lvl=soft_lvl) 
-                        
-    # fixed the length of svv for all runs
-    fullsvv = np.full([max_matrix_dim], np.nan)
-    fullsvv[:len(svv_soft)] = svv_soft
-
-    return df_experiment(m=m, n=n, snr=snr, p=p, noise_scale=noise_scale, soft_lvl=soft_lvl, max_matrix_dim=max_matrix_dim, mc=mc,
-                         cosL=cosL, cosR=cosR, svv=fullsvv)
-    
-
-
-def dict_from_csv(add: str, rename_cols=None, drop_cols=None, mc_range=(11, 20)) -> list:
-  
-  df = pd.read_csv(add, index_col=0)
-  
-  # below columns will be renamed
-  if not rename_cols:
-    rename_cols = {'nsspecfit_slope': 'noise_scale', 'nsspecfit_intercept':'soft_lvl'}
-  # below columns will be drop
-  if not drop_cols:
-    drop_cols = ['nsspecfit_r2']
-    
-  df = df.drop(columns=drop_cols)
-  df = df.rename(columns=rename_cols)
-  
-  # make positive soft thresholding level
-  df['soft_lvl'] = np.abs(df['soft_lvl'])
-
-  unique_dic = df.to_dict('records')
-
-  multi_res = []
-  for d in unique_dic: 
-    # putting single values in a list
-    for key in d.keys():
-      d[key] = [d[key]]
-        
-    d['mc'] = [round(p) for p in np.arange(mc_range[0], mc_range[1] + 1, 1)]
-    multi_res += [d]
-  return multi_res
-
-def make_tune_data(sensing_model_table_name):
-    # load table_name
-    project_id = 'hs-deep-lab-donoho'
-    qr = f'SELECT * FROM  `EMS.{sensing_model_table_name}` WHERE mc <= 10'
-    client = bigquery.Client(project=project_id, credentials=get_gbq_credentials())
-    df_tune = client.query(qr).to_dataframe()
-
-    # group mean
-    all_cols = 'm, n, snr, snr2, p'.split(', ')
-    grid_cols = [col for col in all_cols if col in list(df_tune.columns)]
-    gdf = df_tune.groupby(grid_cols)
-    df_emp_param = gdf.mean().reset_index()
-
-    final_cols = grid_cols + ['nsspecfit_slope', 'nsspecfit_intercept', 'nsspecfit_r2']
-    df_emp_param = df_emp_param[final_cols]
-
-    # save data
-    add = f'tune_{sensing_model_table_name}.csv'
-    df_emp_param.to_csv(add, float_format='%.6f')
-
-    return df_emp_param
 
 def test_experiment() -> dict:
-   
-    # below two lines need to modify. it will run denoising model on same grid of hyper-parameters as in sensing_model
-    # given.  Monte Carlo numbers would be chosen in mc_range.  since we used mc = 1, ..., 10 for tuning, it's better to
-    # use mc >= 11 for making test data.
-    sensing_model_table_name = 'milad_mc_0013'
-    mc_range = (11, 12)
-
-
-    make_tune_data(sensing_model_table_name)
-    exp = dict(table_name='milad_md_test_make_tune',
+    # make sure dim, rank, and number of solver parameters are upperbounded by below number through the entire experiment
+    max_matrix_dim = 1000
+    max_rank = 5
+    max_solver_params = 2
+    author = 'milad'
+    exp = dict(table_name=f'{author}_md_0011',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
-               multi_res=dict_from_csv(f'tune_{sensing_model_table_name}.csv', mc_range=mc_range)
-              )
+               multi_res=[]
+               )
 
-    
-    # add max_matrix_dim for having unified output size
     mr = exp['multi_res']
-    max_matrix_dim = 0
-    for params in mr:
-        paramlist =[max_matrix_dim]
-        paramlist.extend(params['m'])
-        paramlist.extend(params['n'])
-        max_matrix_dim = max(paramlist)
-    for params in mr:
-        params['max_matrix_dim'] = [int(max_matrix_dim)]
+    rank = 5
+    p = 0.2
+    for n in [500, 1000]:
+        for sigma in [round(10 ** log_sigma, 8) for log_sigma in np.linspace(-6, -3, 40)]:
+            ell = round(1 / (sigma * np.sqrt(n)), 3)
+            Lambda = 5 * sigma * np.sqrt(n) * p
+            d = {
+                'm': [n],
+                'n': [n],
+                'rank': [rank],
+                'p': [p],
+                'sigma': [sigma],
+                'signal_strengths': [list_encoder([ell] * rank)],
+                'ensemble': ['gaussian_unit_row_var'],
+                'left_singvec_dist': ['orthogonal'],
+                'right_singvec_dist': ['orthogonal'],
+                'solver_name': ['norm_nuc_pen'],
+                'solver_parameters': [list_encoder([round(Lambda, 8)])],
+                'mc_id': [round(p) for p in np.linspace(1, 20, 20)],
+
+                # size unifying parameters
+                'max_matrix_dim': [max_matrix_dim],
+                'max_rank': [max_rank],
+                'max_solver_params': [max_solver_params]
+            }
+            mr.append(d)
     return exp
 
 
@@ -204,17 +240,27 @@ def do_test():
     j_exp = json.dumps(exp, indent=4)
     # print(j_exp)
     params = unroll_experiment(exp)
-    print(params[0])
-    for ind in [0, 1, 1000, -2, -1]:
+    inds = [0, 1, -1, -2]
+    # inds = []
+    inds += list(np.random.randint(len(params), size=6, dtype=int))
+    print(f'experiment has {len(params)} items. we test run on random sample {inds}.')
+    t0 = time()
+    df = DataFrame()
+    for ind in inds:
         p = params[ind]
-        start = time()
-        df = do_matrix_denoising(**p)
-        print(p, '\n', df.iloc[:, :15], f'\n run time = {round(time() - start, 3)}', '\n'*2)
+        print(f' ind = {ind}, passed params {p}\n')
+        df = pd.concat([df, do_matrix_denoising(**p)], ignore_index=True)
+    pd.set_option('display.max_columns', None)
+    print(df)
 
-    pass
-    
-    # print(exp['multi_res'][:10])
-    # print(exp['multi_res'][-10:])
+    def get_run_time(start):
+        from time import time
+        d = time() - start
+        return f'{round(d / 60, 2)} mins'
+    print(f'run time for {len(inds)} runs: {get_run_time(t0)}')
+    d = time() - t0
+    est = round((d * len(params) / len(inds)) / 3600, 2)
+    print(f'whole run time estimate on one core is {est} hours')
 
 
 if __name__ == "__main__":
