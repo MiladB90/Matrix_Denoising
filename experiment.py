@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 import pandas as pd
+import scipy
 from numpy.random import Generator
 from pandas import DataFrame
 from scipy import stats as st
@@ -103,7 +104,11 @@ def do_matrix_denoising(*, m: int, n: int, rank: int, signal_strengths: str, p: 
 def take_measurements(*, U: np.ndarray, V: np.ndarray, signal: np.ndarray, noisy_observations: np.ndarray, rank: int,
                         estimator: np.ndarray,
                         max_rank: int, max_matrix_dim: int) -> DataFrame:
-    Uhat, Shat, Vhat = np.linalg.svd(estimator, full_matrices=False)
+
+    # to avoid svd did not converge first normalize the estimator, and use scipy svd
+    factor =  np.linalg.norm(estimator)
+    Uhat, Shat, Vhat = scipy.linalg.svd(estimator / factor, full_matrices=False)
+    Shat *= factor
     # transpose Vhat to get vectors as columns
     Vhat = Vhat.T
 
@@ -148,8 +153,9 @@ def take_measurements(*, U: np.ndarray, V: np.ndarray, signal: np.ndarray, noisy
 
     # 8. relative Frobenius norm of error
     name = 'relative_fro_norm_err'
-    err = signal - estimator
-    val = np.linalg.norm(err, 'fro') / np.linalg.norm(signal, 'fro')
+    truth = noisy_observations
+    err = truth - estimator
+    val = np.linalg.norm(err, 'fro') / np.linalg.norm(truth, 'fro')
     measures[name] = val
 
 
@@ -170,7 +176,7 @@ def test_experiment() -> dict:
     max_rank = 5
     max_solver_params = 2
     author = 'milad'
-    exp = dict(table_name=f'{author}_md_0012',
+    exp = dict(table_name=f'{author}_md_0013',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=[]
@@ -179,7 +185,8 @@ def test_experiment() -> dict:
     mr = exp['multi_res']
     rank = 5
     p = 0.2
-    for n in [500, 1000]:
+    for n in [1000]:
+    # for n in [500, 1000]:
         for sigma in [round(10 ** log_sigma, 8) for log_sigma in np.linspace(-6, -3, 40)]:
             ell = round(1 / (sigma * np.sqrt(n)), 3)
             Lambda = 5 * sigma * np.sqrt(n) * p
