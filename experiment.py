@@ -35,7 +35,7 @@ def list_decoder(s: str) -> list:
 def do_matrix_denoising(*, m: int, n: int, rank: int, signal_strengths: str, p: float, sigma: float,
                          ensemble: str, left_singvec_dist: str, right_singvec_dist: str, solver_name: str, solver_parameters: str,
                          max_matrix_dim: int, max_rank: int, max_solver_params: int, mc_id: int) -> DataFrame:
-    # unpack list inputs, e.g. signal strenghs
+    # unpack list inputs, e.g. signal strenghts
     ells = list_decoder(signal_strengths)
     solver_parameters_list = list_decoder(solver_parameters)
     
@@ -70,12 +70,12 @@ def do_matrix_denoising(*, m: int, n: int, rank: int, signal_strengths: str, p: 
     # concatenate inputs + outputs
     # input
     c = 'm, n, rank, signal_strengths, p, sigma, noise_entry_std,' \
-        ' ensemble, left_singvec_dist, right_singvec_dist, ' \
-        ' solver_name, solver_parameters, shrinker_name, shrinker_parameters' \
+        ' ensemble, left_singvec_dist, right_singvec_dist,' \
+        ' solver_name, solver_parameters, shrinker_name, shrinker_parameters,' \
         ' max_matrix_dim, max_rank, max_solver_params, mc_id'.split(', ')
     inputs = [m, n, rank, signal_strengths, p, sigma, noise_entry_std,
               ensemble, left_singvec_dist, right_singvec_dist,
-              shrinker_name, shrinker_parameters, shrinker_name, list_encoder(shrinker_parameters),
+              solver_name, solver_parameters, shrinker_name, list_encoder(shrinker_parameters),
               max_matrix_dim, max_rank, max_solver_params, mc_id]
     df_inputs = _df(c, inputs)
     
@@ -170,7 +170,7 @@ def test_experiment() -> dict:
     max_rank = 5
     max_solver_params = 2
     author = 'milad'
-    exp = dict(table_name=f'{author}_md_0011',
+    exp = dict(table_name=f'{author}_md_0012',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=[]
@@ -252,6 +252,8 @@ def do_test():
         df = pd.concat([df, do_matrix_denoising(**p)], ignore_index=True)
     pd.set_option('display.max_columns', None)
     print(df)
+    print(df.shape)
+    print(*list(df.columns[10:20]))
 
     def get_run_time(start):
         from time import time
