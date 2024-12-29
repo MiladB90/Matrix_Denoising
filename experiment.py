@@ -181,7 +181,7 @@ def test_experiment() -> dict:
     max_rank = 5
     max_solver_params = 2
     author = 'milad'
-    exp = dict(table_name=f'{author}_md_0013',
+    exp = dict(table_name=f'{author}_md_0014',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=[]
@@ -190,8 +190,7 @@ def test_experiment() -> dict:
     mr = exp['multi_res']
     rank = 5
     p = 0.2
-    for n in [1000]:
-    # for n in [500, 1000]:
+    for n in [500]:
         for sigma in [round(10 ** log_sigma, 8) for log_sigma in np.linspace(-6, -3, 40)]:
             ell = round(1 / (sigma * np.sqrt(n)), 3)
             Lambda = 5 * sigma * np.sqrt(n) * p
@@ -281,6 +280,6 @@ def do_test():
 
 
 if __name__ == "__main__":
-    # do_local_experiment()
+    do_local_experiment()
     # do_coiled_experiment()
-    do_test()
+    # do_test()
