@@ -13,7 +13,7 @@ def get_shrinker_name_and_parameters(p: float, solver_name: str, solver_paramete
         shrinker_name = 'soft_thresholding'
 
         lambda_mc = solver_parameters_list[0]
-        shrinker_parameters = [2 * ((1 / np.sqrt(p)) - 1) + lambda_mc]
+        shrinker_parameters = [round(2 * ((1 / np.sqrt(p)) - 1) + lambda_mc, 3)]
 
 
     return shrinker_name, shrinker_parameters

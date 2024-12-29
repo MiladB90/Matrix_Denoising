@@ -80,21 +80,21 @@ def do_matrix_denoising(*, m: int, n: int, rank: int, signal_strengths: str, p: 
               max_matrix_dim, max_rank, max_solver_params, mc_id]
     df_inputs = _df(c, inputs)
     
-    # # unpack signal strength, put it in a df with unified number of columns max_rank
-    # full_ells = [0] * max_rank
-    # full_ells[:rank] = ells
-    # c = [f'ell_{i}' for i in range(max_rank)]
-    # df_signal_strengths = _df(c, full_ells)
-    #
-    # # unpack solver params, put it in a df with unified number of columns max_rank
-    # full_shrinker_parameters = [None] * max_solver_params
-    # param_size = len(shrinker_parameters_list)
-    # full_shrinker_parameters[:param_size] = shrinker_parameters_list
-    # cols = [f'lambda_{i}' for i in range(max_solver_params)]
-    # df_shrinker_parameters = _df(cols, full_shrinker_parameters)
+    # unpack signal strength, put it in a df with unified number of columns max_rank
+    full_ells = [0] * max_rank
+    full_ells[:rank] = ells
+    c = [f'ell_{i}' for i in range(max_rank)]
+    df_signal_strengths = _df(c, full_ells)
+
+    # unpack solver params, put it in a df with unified number of columns max_rank
+    full_shrinker_parameters = [None] * max_solver_params
+    param_size = len(shrinker_parameters)
+    full_shrinker_parameters[:param_size] = shrinker_parameters
+    cols = [f'lambda_{i}' for i in range(max_solver_params)]
+    df_shrinker_parameters = _df(cols, full_shrinker_parameters)
 
     # concat output
-    # df_inputs = pd.concat([df_inputs, df_signal_strengths, df_shrinker_parameters], axis=1)
+    df_inputs = pd.concat([df_inputs, df_signal_strengths, df_shrinker_parameters], axis=1)
     df = pd.concat([df_inputs, df_out], axis=1)
     
     return df
@@ -152,10 +152,15 @@ def take_measurements(*, U: np.ndarray, V: np.ndarray, signal: np.ndarray, noisy
     measures[name] = val
 
     # 8. relative Frobenius norm of error
-    name = 'relative_fro_norm_err'
-    truth = noisy_observations
-    err = truth - estimator
-    val = np.linalg.norm(err, 'fro') / np.linalg.norm(truth, 'fro')
+    name = 'relative_err_fro_norm_noisy_obs'
+    err = noisy_observations - estimator
+    val = np.linalg.norm(err, 'fro') / np.linalg.norm(noisy_observations, 'fro')
+    measures[name] = val
+
+    # 9. relative Frobenius norm of error
+    name = 'relative_err_fro_norm_signal'
+    err = signal - estimator
+    val = np.linalg.norm(err, 'fro') / np.linalg.norm(signal, 'fro')
     measures[name] = val
 
 
@@ -258,9 +263,12 @@ def do_test():
         print(f' ind = {ind}, passed params {p}\n')
         df = pd.concat([df, do_matrix_denoising(**p)], ignore_index=True)
     pd.set_option('display.max_columns', None)
-    print(df)
+    # print(df)
     print(df.shape)
-    print(*list(df.columns[10:20]))
+    no_sv_columns = [col for col in df.columns if 'sv_' not in col]
+    sv_columns = [col for col in df.columns if 'sv_'  in col]
+    cols_to_show = no_sv_columns + sv_columns[:2] + sv_columns[-2:]
+    print(df[cols_to_show])
 
     def get_run_time(start):
         from time import time
@@ -273,6 +281,6 @@ def do_test():
 
 
 if __name__ == "__main__":
-    do_local_experiment()
+    # do_local_experiment()
     # do_coiled_experiment()
-    # do_test()
+    do_test()
