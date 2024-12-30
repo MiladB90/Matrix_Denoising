@@ -55,7 +55,10 @@ def do_matrix_denoising(*, m: int, n: int, rank: int, signal_strengths: str, p: 
     noisy_observations = signal + noise
     
     # estimate the signal
-    shrinker_name, shrinker_parameters = get_shrinker_name_and_parameters(p, solver_name, solver_parameters_list, tune_mode)
+    shrinker_name, shrinker_parameters = get_shrinker_name_and_parameters(p=p, n=n, sigma=sigma,
+                                                                          solver_name=solver_name,
+                                                                          solver_parameters_list=solver_parameters_list,
+                                                                          tune_mode=tune_mode)
     def eta(x):
         return shrinker(x, shrinker_name, shrinker_parameters)
 
@@ -105,64 +108,71 @@ def do_matrix_denoising(*, m: int, n: int, rank: int, signal_strengths: str, p: 
 def take_measurements(*, U: np.ndarray, V: np.ndarray, signal: np.ndarray, noisy_observations: np.ndarray, rank: int,
                         estimator: np.ndarray,
                         max_rank: int, max_matrix_dim: int) -> DataFrame:
-
-    # to avoid svd did not converge first normalize the estimator, and use scipy svd
-    factor =  np.linalg.norm(estimator)
-    Uhat, Shat, Vhat = scipy.linalg.svd(estimator / factor, full_matrices=False)
-    Shat *= factor
-    # transpose Vhat to get vectors as columns
-    Vhat = Vhat.T
-
     measures = {}
-    # 1. left cos similarities (cos_l_{i},  i = 0, 1, ..., rank)
-    for i in range(max_rank):
-        name = f'cos_l_{i}'
-        val = np.abs(np.dot(U[:, i], Uhat[:, i])) if i < rank else None
+    try:
+        # to avoid svd did not converge first normalize the estimator, and use scipy svd
+        factor =  np.linalg.norm(estimator)
+        Uhat, Shat, Vhat = scipy.linalg.svd(estimator / factor, full_matrices=False)
+        Shat *= factor
+        # transpose Vhat to get vectors as columns
+        Vhat = Vhat.T
+
+        # 1. left cos similarities (cos_l_{i},  i = 0, 1, ..., rank)
+        for i in range(max_rank):
+            name = f'cos_l_{i}'
+            val = np.abs(np.dot(U[:, i], Uhat[:, i])) if i < rank else None
+            measures[name] = val
+
+        # 2. right cos similarities (cos_r_{i},  i = 0, 1, ..., rank)
+        for i in range(max_rank):
+            name = f'cos_r_{i}'
+            val = np.abs(np.dot(V[:, i], Vhat[:, i])) if i < rank else None
+            measures[name] = val
+
+        # 3. spectrum of estimator (sv_{i}, i = 0, 1, ..., max_matrix_dim - 1)
+        for i in range(max_matrix_dim):
+            val = Shat[i] if i < len(Shat) else None
+            name = f'sv_{i}'
+            measures[name] = val
+
+        # 4. MSE with signal (MSE_signal)
+        name = 'MSE_signal'
+        val = get_mse(signal, estimator)
         measures[name] = val
 
-    # 2. right cos similarities (cos_r_{i},  i = 0, 1, ..., rank)
-    for i in range(max_rank):
-        name = f'cos_r_{i}'
-        val = np.abs(np.dot(V[:, i], Vhat[:, i])) if i < rank else None
+        # 5. MSE with full noisy observations (MSE_obs)
+        name = 'MSE_obs'
+        val = get_mse(noisy_observations, estimator)
         measures[name] = val
 
-    # 3. spectrum of estimator (sv_{i}, i = 0, 1, ..., max_matrix_dim - 1)
-    for i in range(max_matrix_dim):
-        val = Shat[i] if i < len(Shat) else None
-        name = f'sv_{i}'
+        # 6. true nuc norm of full noisy observation
+        name = 'nuc_norm_full_noisy_obs'
+        val = np.linalg.norm(noisy_observations, 'nuc')
         measures[name] = val
 
-    # 4. MSE with signal (MSE_signal)
-    name = 'MSE_signal'
-    val = get_mse(signal, estimator)
-    measures[name] = val
+        # 7. estimated nuc norm
+        name = 'nuc_norm_est'
+        val = np.linalg.norm(estimator, 'nuc')
+        measures[name] = val
 
-    # 5. MSE with full noisy observations (MSE_obs)
-    name = 'MSE_obs'
-    val = get_mse(noisy_observations, estimator)
-    measures[name] = val
+        # 8. relative Frobenius norm of error
+        name = 'relative_err_fro_norm_noisy_obs'
+        err = noisy_observations - estimator
+        val = np.linalg.norm(err, 'fro') / np.linalg.norm(noisy_observations, 'fro')
+        measures[name] = val
 
-    # 6. true nuc norm of full noisy observation
-    name = 'nuc_norm_full_noisy_obs'
-    val = np.linalg.norm(noisy_observations, 'nuc')
-    measures[name] = val
+        # 9. relative Frobenius norm of error
+        name = 'relative_err_fro_norm_signal'
+        err = signal - estimator
+        val = np.linalg.norm(err, 'fro') / np.linalg.norm(signal, 'fro')
+        measures[name] = val
 
-    # 7. estimated nuc norm
-    name = 'nuc_norm_est'
-    val = np.linalg.norm(estimator, 'nuc')
-    measures[name] = val
+    except np.linalg.LinAlgError as e:
+        print("SVD failed to converge:", e)
 
-    # 8. relative Frobenius norm of error
-    name = 'relative_err_fro_norm_noisy_obs'
-    err = noisy_observations - estimator
-    val = np.linalg.norm(err, 'fro') / np.linalg.norm(noisy_observations, 'fro')
-    measures[name] = val
-
-    # 9. relative Frobenius norm of error
-    name = 'relative_err_fro_norm_signal'
-    err = signal - estimator
-    val = np.linalg.norm(err, 'fro') / np.linalg.norm(signal, 'fro')
-    measures[name] = val
+        # make dataframe and return
+    measures_df = DataFrame(measures, index=[0])
+    return measures_df
 
 
     # make dataframe and return
@@ -182,7 +192,7 @@ def test_experiment() -> dict:
     max_rank = 5
     max_solver_params = 2
     author = 'milad'
-    exp = dict(table_name=f'{author}_md_0017',
+    exp = dict(table_name=f'{author}_md_0018',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=[]
@@ -191,7 +201,7 @@ def test_experiment() -> dict:
     mr = exp['multi_res']
     rank = 5
     p = 0.2
-    tune_mode = "empirical"
+    tune_mode = "theory"
     for n in [1000]:
         for sigma in [round(10 ** log_sigma, 8) for log_sigma in np.linspace(-6, -3, 40)]:
             ell = round(1 / (sigma * np.sqrt(n)), 3)
@@ -283,6 +293,6 @@ def do_test():
 
 
 if __name__ == "__main__":
-    # do_local_experiment()
+    do_local_experiment()
     # do_coiled_experiment()
-    do_test()
+    # do_test()

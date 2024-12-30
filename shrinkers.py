@@ -10,7 +10,8 @@ def shrinker(x: float, shrinker_name: str, shrinker_parameters_list: list) -> fl
 
 
 
-def get_shrinker_name_and_parameters(p: float, solver_name: str, solver_parameters_list: list, tune_mode: str) -> list:
+def get_shrinker_name_and_parameters(p: float, n:int, sigma: float,
+                                     solver_name: str, solver_parameters_list: list, tune_mode: str) -> list:
     if tune_mode == 'no_shrink':
         shrinker_name = 'no_shrink'
         shrinker_parameters = []
@@ -20,7 +21,11 @@ def get_shrinker_name_and_parameters(p: float, solver_name: str, solver_paramete
         # tune modes
         if tune_mode == 'theory':
             lambda_mc = solver_parameters_list[0]
-            shrinker_parameters = [round(2 * ((1 / np.sqrt(p)) - 1) + lambda_mc, 3)]
+            # both below way should give the same, but for some reason they don't. check later
+            # pen_to_milad_coef = 1 / (sigma * np.sqrt(n))
+            # lambda_mdn = round(2 * ((1 / np.sqrt(p)) - 1) + pen_to_milad_coef * lambda_mc, 3)
+            lambda_mdn = round(2 * (1 / np.sqrt(p) - 1) + 5 * np.sqrt(p), 3)
+            shrinker_parameters = [lambda_mdn]
         if tune_mode == 'empirical':
             shrinker_parameters = [11.80]
 
