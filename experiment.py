@@ -182,7 +182,7 @@ def test_experiment() -> dict:
     max_rank = 5
     max_solver_params = 2
     author = 'milad'
-    exp = dict(table_name=f'{author}_md_0016',
+    exp = dict(table_name=f'{author}_md_0017',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=[]
@@ -191,9 +191,8 @@ def test_experiment() -> dict:
     mr = exp['multi_res']
     rank = 5
     p = 0.2
-    tune_mode = "no_shrink"
+    tune_mode = "empirical"
     for n in [1000]:
-    # for n in [500, 1000]:
         for sigma in [round(10 ** log_sigma, 8) for log_sigma in np.linspace(-6, -3, 40)]:
             ell = round(1 / (sigma * np.sqrt(n)), 3)
             Lambda = 5 * sigma * np.sqrt(n) * p
@@ -280,7 +279,7 @@ def do_test():
     print(f'run time for {len(inds)} runs: {get_run_time(t0)}')
     d = time() - t0
     est = round((d * len(params) / len(inds)) / 3600, 2)
-    print(f'whole run time estimate on one core is {est} hours')
+    print(f'whole run time estimate for {len(params)} items on one core is {est} hours')
 
 
 if __name__ == "__main__":
