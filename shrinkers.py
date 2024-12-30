@@ -21,6 +21,8 @@ def get_shrinker_name_and_parameters(p: float, solver_name: str, solver_paramete
         if tune_mode == 'theory':
             lambda_mc = solver_parameters_list[0]
             shrinker_parameters = [round(2 * ((1 / np.sqrt(p)) - 1) + lambda_mc, 3)]
+        if tune_mode == 'empirical':
+            shrinker_parameters = [11.80]
 
 
     return shrinker_name, shrinker_parameters
