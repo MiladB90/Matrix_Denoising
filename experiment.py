@@ -178,21 +178,21 @@ def get_mse(mat1: np.ndarray, mat2: np.ndarray) -> float:
 
 def test_experiment() -> dict:
     # make sure dim, rank, and number of solver parameters are upperbounded by below number through the entire experiment
-    max_matrix_dim = 1000
+    max_matrix_dim = 500
     max_rank = 5
     max_solver_params = 2
     author = 'milad'
-    exp = dict(table_name=f'{author}_md_0017',
+    exp = dict(table_name=f'{author}_md_0021',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=[]
                )
 
     mr = exp['multi_res']
-    rank = 5
+    rank = 1
     p = 0.2
-    tune_mode = "empirical"
-    for n in [1000]:
+    tune_mode = "no_shrink"
+    for n in [500]:
         for sigma in [round(10 ** log_sigma, 8) for log_sigma in np.linspace(-6, -3, 40)]:
             ell = round(1 / (sigma * np.sqrt(n)), 3)
             Lambda = 5 * sigma * np.sqrt(n) * p
@@ -209,7 +209,7 @@ def test_experiment() -> dict:
                 'right_singvec_dist': ['orthogonal'],
                 'solver_name': ['norm_nuc_pen'],
                 'solver_parameters': [list_encoder([round(Lambda, 8)])],
-                'mc_id': [round(p) for p in np.linspace(1, 20, 20)],
+                'mc_id': [round(p) for p in np.linspace(1, 10, 10)],
 
                 # size unifying parameters
                 'max_matrix_dim': [max_matrix_dim],
@@ -283,6 +283,6 @@ def do_test():
 
 
 if __name__ == "__main__":
-    # do_local_experiment()
+    do_local_experiment()
     # do_coiled_experiment()
-    do_test()
+    # do_test()
