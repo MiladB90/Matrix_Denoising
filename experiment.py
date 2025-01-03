@@ -182,19 +182,20 @@ def test_experiment() -> dict:
     max_rank = 5
     max_solver_params = 2
     author = 'milad'
-    exp = dict(table_name=f'{author}_md_0021',
+    exp = dict(table_name=f'{author}_md_0022',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=[]
                )
 
     mr = exp['multi_res']
-    rank = 1
+    rank = 5
     p = 0.2
     tune_mode = "no_shrink"
     for n in [500]:
         for sigma in [round(10 ** log_sigma, 8) for log_sigma in np.linspace(-6, -3, 40)]:
-            ell = round(1 / (sigma * np.sqrt(n)), 3)
+            pen_to_milad_scale = 1 / (sigma * np.sqrt(n))
+            ells = [round(1 / (2 ** p) * pen_to_milad_scale, 3) for p in range(rank)]
             Lambda = 5 * sigma * np.sqrt(n) * p
             d = {
                 'm': [n],
@@ -203,7 +204,7 @@ def test_experiment() -> dict:
                 'p': [p],
                 'sigma': [sigma],
                 'tune_mode': [tune_mode],
-                'signal_strengths': [list_encoder([ell] * rank)],
+                'signal_strengths': [list_encoder(ells)],
                 'ensemble': ['gaussian_unit_row_var'],
                 'left_singvec_dist': ['orthogonal'],
                 'right_singvec_dist': ['orthogonal'],
