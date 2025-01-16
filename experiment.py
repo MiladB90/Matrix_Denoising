@@ -192,7 +192,7 @@ def test_experiment() -> dict:
     rank = 5
     p = 0.2
     tune_mode = "empirical"
-    for n in [1000]:
+    for n in [100]:
         for sigma in [round(10 ** log_sigma, 8) for log_sigma in np.linspace(-6, -3, 40)]:
             ell = round(1 / (sigma * np.sqrt(n)), 3)
             Lambda = 5 * sigma * np.sqrt(n) * p
@@ -204,7 +204,7 @@ def test_experiment() -> dict:
                 'sigma': [sigma],
                 'tune_mode': [tune_mode],
                 'signal_strengths': [list_encoder([ell] * rank)],
-                'ensemble': ['gaussian_unit_row_var'],
+                'ensemble': ['gaussian_1_over_p_row_var'],
                 'left_singvec_dist': ['orthogonal'],
                 'right_singvec_dist': ['orthogonal'],
                 'solver_name': ['norm_nuc_pen'],

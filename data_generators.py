@@ -21,7 +21,7 @@ def make_data(m: int, n: int, rank: int, p: float, sigma: float,
 
 
     # noise
-    if ensemble == 'gaussian_unit_row_var':
+    if ensemble == 'gaussian_1_over_p_row_var':
         noise_entry_std = get_noise_entry_std(p=p, n=n, ensemble=ensemble)
         noise = rng.normal(0, noise_entry_std, (m, n))
 
@@ -31,10 +31,10 @@ def make_data(m: int, n: int, rank: int, p: float, sigma: float,
 
 # noise scalar
 def get_noise_entry_std(p, n, ensemble):
-    if ensemble == 'gaussian_unit_row_var':
-        scaler = 1 / np.sqrt(p * n)
+    if ensemble == 'gaussian_1_over_p_row_var':
+        std = 1 / np.sqrt(p * n)
 
-    return scaler
+    return std
 
 
 def gaussian_with_normalized_columns(row_size, col_size, rng):
