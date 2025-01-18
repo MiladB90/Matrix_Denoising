@@ -1,9 +1,9 @@
 #!/bin/sh
 
-#SBATCH --job-name=md
+#SBATCH --job-name=md24
 #SBATCH --partition=normal,owners,donoho,hns,stat
 #SBATCH --cpus-per-task=16
-#SBATCH --time=00:10:00
+#SBATCH --time=01:00:00
 #SBATCH --error=md_test.err
 #SBATCH --output=md_test.out
 

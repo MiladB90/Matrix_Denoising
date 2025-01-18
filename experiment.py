@@ -178,45 +178,44 @@ def get_mse(mat1: np.ndarray, mat2: np.ndarray) -> float:
 
 def test_experiment() -> dict:
     # make sure dim, rank, and number of solver parameters are upperbounded by below number through the entire experiment
-    max_matrix_dim = 1000
+    max_matrix_dim = 500
     max_rank = 5
     max_solver_params = 2
     author = 'milad'
-    exp = dict(table_name=f'{author}_md_0017',
+    exp = dict(table_name=f'{author}_md_0024',
                base_index=0,
                db_url='sqlite:///data/MatrixCompletion.db3',
                multi_res=[]
                )
-
     mr = exp['multi_res']
-    rank = 5
-    p = 0.2
-    tune_mode = "empirical"
-    for n in [100]:
-        for sigma in [round(10 ** log_sigma, 8) for log_sigma in np.linspace(-6, -3, 40)]:
-            ell = round(1 / (sigma * np.sqrt(n)), 3)
-            Lambda = 5 * sigma * np.sqrt(n) * p
-            d = {
-                'm': [n],
-                'n': [n],
-                'rank': [rank],
-                'p': [p],
-                'sigma': [sigma],
-                'tune_mode': [tune_mode],
-                'signal_strengths': [list_encoder([ell] * rank)],
-                'ensemble': ['gaussian_1_over_p_row_var'],
-                'left_singvec_dist': ['orthogonal'],
-                'right_singvec_dist': ['orthogonal'],
-                'solver_name': ['norm_nuc_pen'],
-                'solver_parameters': [list_encoder([round(Lambda, 8)])],
-                'mc_id': [round(p) for p in np.linspace(1, 20, 20)],
+    ell_values = [p for p in np.linspace(2, 100, 10)] + [p for p in np.linspace(1000, 40000, 10)]
+    ranks = [1, 2, 3, 4, 5]
+    ps = [round(p, 3) for p in np.linspace(0.01, 1, 10)]
+    m = n = 500
+    for ell in ell_values:
+        for rank in ranks:
+            for p in ps:
+                d = {
+                    'm': [m],
+                    'n': [n],
+                    'rank': [rank],
+                    'signal_strengths': [list_encoder([round(ell, 3)] * rank)],
+                    'p': [p],
+                    'sigma': [1],
+                    'tune_mode': ['no_shrink'],
+                    'ensemble': ['gaussian_1_over_p_row_var'],
+                    'left_singvec_dist': ['orthogonal'],
+                    'right_singvec_dist': ['orthogonal'],
+                    'solver_name': ['norm_nuc_pen'],
+                    'solver_parameters': [list_encoder([round(p, 3)]) for p in np.linspace(0.1, 5 * np.sqrt(p), 10)],
+                    'mc_id': [1],
 
-                # size unifying parameters
-                'max_matrix_dim': [max_matrix_dim],
-                'max_rank': [max_rank],
-                'max_solver_params': [max_solver_params]
-            }
-            mr.append(d)
+                    # size unifying parameters
+                    'max_matrix_dim': [max_matrix_dim],
+                    'max_rank': [max_rank],
+                    'max_solver_params': [max_solver_params]
+                }
+                mr.append(d)
     return exp
 
 
