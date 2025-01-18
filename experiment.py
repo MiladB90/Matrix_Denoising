@@ -188,7 +188,7 @@ def test_experiment() -> dict:
                multi_res=[]
                )
     mr = exp['multi_res']
-    ell_values = [p for p in np.linspace(2, 100, 10)] + [p for p in np.linspace(1000, 40000, 10)]
+    ell_values = [p for p in np.linspace(2, 100, 10)] + [1000]
     ranks = [1, 2, 3, 4, 5]
     ps = [round(p, 3) for p in np.linspace(0.01, 1, 10)]
     m = n = 500
