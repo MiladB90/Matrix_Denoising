@@ -21,9 +21,12 @@ import json
 logging.basicConfig(level=logging.INFO)
 
 
-def _df(c: list, l: list) -> DataFrame:
+def _df(c: list, l: list, dtypes: dict = None) -> DataFrame:
     d = dict(zip(c, l))
-    return DataFrame(data=d, index=[0])
+    df = DataFrame(data=d, index=[0])
+    if dtypes:
+        df = df.astype(dtypes)
+    return df
 
 def list_encoder(l: list) -> str:
     return json.dumps(l)
@@ -85,14 +88,14 @@ def do_matrix_denoising(*, m: int, n: int, rank: int, signal_strengths: str, p: 
     full_ells = [0] * max_rank
     full_ells[:rank] = ells
     c = [f'ell_{i}' for i in range(max_rank)]
-    df_signal_strengths = _df(c, full_ells)
+    df_signal_strengths = _df(c, full_ells, float)
 
     # unpack solver params, put it in a df with unified number of columns max_rank
     full_shrinker_parameters = [None] * max_solver_params
     param_size = len(shrinker_parameters)
     full_shrinker_parameters[:param_size] = shrinker_parameters
     cols = [f'lambda_{i}' for i in range(max_solver_params)]
-    df_shrinker_parameters = _df(cols, full_shrinker_parameters)
+    df_shrinker_parameters = _df(cols, full_shrinker_parameters, float)
 
     # concat output
     df_inputs = pd.concat([df_inputs, df_signal_strengths, df_shrinker_parameters], axis=1)
@@ -166,7 +169,7 @@ def take_measurements(*, U: np.ndarray, V: np.ndarray, signal: np.ndarray, noisy
 
 
     # make dataframe and return
-    measures_df = DataFrame(measures, index=[0])
+    measures_df = DataFrame(measures, index=[0], dtype=float)
     return measures_df
 
 # other functions
@@ -188,7 +191,7 @@ def test_experiment() -> dict:
                multi_res=[]
                )
     mr = exp['multi_res']
-    ell_values = [p for p in np.linspace(2, 100, 10)] + [1000]
+    ell_values = [p for p in np.linspace(2, 100, 10)]
     ranks = [1, 2, 3, 4, 5]
     ps = [round(p, 3) for p in np.linspace(0.01, 1, 10)]
     m = n = 500
